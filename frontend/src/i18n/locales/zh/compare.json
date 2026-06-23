@@ -1,0 +1,47 @@
+{
+  "level": {
+    "account": "账户",
+    "strategy": "策略"
+  },
+  "compare": "对比",
+  "equityCurves": "权益曲线",
+  "headToHead": "横向对比",
+  "delta": "Δ",
+  "available": "可选",
+  "selected": "已选 ({{count}})",
+  "allSelected": "已全选",
+  "selectSeries": "选择序列进行对比",
+  "addStrategies": "添加策略",
+  "noSeries": "暂无序列",
+  "emptyState": "选择对比对象并点击对比",
+  "comparisonFailed": "对比失败:",
+  "metric": "指标",
+  "hoverStats": {
+    "header": "指标 (周期至当日)",
+    "equity": "权益",
+    "netPnl": "净盈亏",
+    "maxDD": "最大回撤"
+  },
+  "metrics": {
+    "Net PnL": "净盈亏",
+    "Gross PnL": "毛盈亏",
+    "Total Fees": "总费用",
+    "Max Drawdown": "最大回撤",
+    "TWR": "TWR",
+    "CAGR": "CAGR",
+    "Volatility": "波动率",
+    "Sharpe": "Sharpe",
+    "Sortino": "Sortino",
+    "Calmar": "Calmar",
+    "Win Rate": "胜率",
+    "Profit Factor": "盈利因子",
+    "Payoff Ratio": "盈亏比",
+    "Expectancy": "期望值",
+    "Avg Win": "平均盈利",
+    "Avg Loss": "平均亏损",
+    "Largest Win": "最大盈利",
+    "Largest Loss": "最大亏损",
+    "Trades": "交易笔数",
+    "Avg Holding": "平均持仓时长"
+  }
+}

@@ -1,0 +1,82 @@
+services:
+  db:
+    image: postgres:16
+    container_name: liveboard-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-liveboard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-liveboard}
+      POSTGRES_DB: ${POSTGRES_DB:-liveboard}
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    volumes:
+      - liveboard_pgdata:/var/lib/postgresql/data
+      - ./scripts/init-test-db.sh:/docker-entrypoint-initdb.d/init-test-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-liveboard} -d ${POSTGRES_DB:-liveboard}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  adminer:
+    image: adminer:4
+    container_name: liveboard-adminer
+    profiles: ["tools"]
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8082:8080"
+
+  backend:
+    build:
+      context: ./backend
+    image: liveboard-backend
+    container_name: liveboard-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-liveboard}:${POSTGRES_PASSWORD:-liveboard}@db:5432/${POSTGRES_DB:-liveboard}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ACCESS_TOKEN_TTL_MIN: ${ACCESS_TOKEN_TTL_MIN:-15}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-14}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:${FRONTEND_PORT:-5175}}
+      RISK_FREE_RATE: ${RISK_FREE_RATE:-0}
+      ANNUALIZATION_DAYS: ${ANNUALIZATION_DAYS:-365}
+      SHARPE_MIN_SAMPLE_TRADES: ${SHARPE_MIN_SAMPLE_TRADES:-20}
+      SHARPE_MIN_ACTIVE_DAYS: ${SHARPE_MIN_ACTIVE_DAYS:-30}
+      SHARPE_SUPPRESS_BELOW: ${SHARPE_SUPPRESS_BELOW:-5}
+      PER_TRADE_MATCH_TOLERANCE: ${PER_TRADE_MATCH_TOLERANCE:-300}
+    ports:
+      - "${BACKEND_PORT:-8002}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: /api
+    image: liveboard-frontend
+    container_name: liveboard-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-5175}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:80/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  liveboard_pgdata:

@@ -1,0 +1,47 @@
+{
+  "level": {
+    "account": "Account",
+    "strategy": "Strategy"
+  },
+  "compare": "Compare",
+  "equityCurves": "Equity Curves",
+  "headToHead": "Head-to-Head Comparison",
+  "delta": "Δ",
+  "available": "Available",
+  "selected": "Selected ({{count}})",
+  "allSelected": "All selected",
+  "selectSeries": "Select series to compare",
+  "addStrategies": "Add strategies",
+  "noSeries": "No series",
+  "emptyState": "Select entities and click Compare to see results.",
+  "comparisonFailed": "Comparison failed:",
+  "metric": "Metric",
+  "hoverStats": {
+    "header": "Metric (period-to-date)",
+    "equity": "Equity",
+    "netPnl": "Net PnL",
+    "maxDD": "Max DD"
+  },
+  "metrics": {
+    "Net PnL": "Net PnL",
+    "Gross PnL": "Gross PnL",
+    "Total Fees": "Total Fees",
+    "Max Drawdown": "Max Drawdown",
+    "TWR": "TWR",
+    "CAGR": "CAGR",
+    "Volatility": "Volatility",
+    "Sharpe": "Sharpe",
+    "Sortino": "Sortino",
+    "Calmar": "Calmar",
+    "Win Rate": "Win Rate",
+    "Profit Factor": "Profit Factor",
+    "Payoff Ratio": "Payoff Ratio",
+    "Expectancy": "Expectancy",
+    "Avg Win": "Avg Win",
+    "Avg Loss": "Avg Loss",
+    "Largest Win": "Largest Win",
+    "Largest Loss": "Largest Loss",
+    "Trades": "Trades",
+    "Avg Holding": "Avg Holding"
+  }
+}

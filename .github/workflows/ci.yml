@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (ruff + pytest unit/api + coverage)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: liveboard
+          POSTGRES_PASSWORD: liveboard
+          POSTGRES_DB: liveboard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U liveboard -d liveboard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg://liveboard:liveboard@localhost:5432/liveboard
+      TEST_DATABASE_URL: postgresql+psycopg://liveboard:liveboard@localhost:5432/liveboard_test
+      JWT_SECRET: ci-secret
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_TTL_MIN: "15"
+      REFRESH_TOKEN_TTL_DAYS: "14"
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: ci-admin-pw
+      CORS_ORIGINS: http://localhost:5173
+      RISK_FREE_RATE: "0"
+      ANNUALIZATION_DAYS: "365"
+      SHARPE_MIN_SAMPLE_TRADES: "20"
+      SHARPE_MIN_ACTIVE_DAYS: "30"
+      SHARPE_SUPPRESS_BELOW: "5"
+      PER_TRADE_MATCH_TOLERANCE: "300"
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sync dependencies (incl. dev)
+        run: uv sync --frozen --dev
+
+      - name: Create the test database
+        run: |
+          PGPASSWORD=liveboard psql -h localhost -U liveboard -d liveboard \
+            -tc "SELECT 1 FROM pg_database WHERE datname='liveboard_test'" \
+            | grep -q 1 || \
+          PGPASSWORD=liveboard psql -h localhost -U liveboard -d liveboard \
+            -c "CREATE DATABASE liveboard_test"
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Apply migrations to the main DB
+        run: uv run alembic upgrade head
+
+      - name: Pytest (unit + api) with coverage gate
+        run: uv run pytest
+
+  frontend:
+    name: Frontend (eslint + build + vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Type-check + build
+        run: npm run build
+
+      - name: Vitest
+        run: npm run test -- --run

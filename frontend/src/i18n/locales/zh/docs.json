@@ -1,0 +1,89 @@
+{
+  "nav": {
+    "ingestion": "数据导入",
+    "reference": "API 参考",
+    "dashboard": "仪表盘",
+    "signIn": "登录"
+  },
+  "hero": {
+    "title": "LiveBoard API",
+    "description": "专业交易分析平台。通过简单的 REST API 导入成交、资金变动、外汇汇率和合约定义。盈亏计算、风险指标、权益曲线和策略归因全部在服务端完成。",
+    "getStarted": "快速开始",
+    "apiReference": "API 参考"
+  },
+  "quickstart": {
+    "title": "快速开始",
+    "step1Title": "注册并等待审批",
+    "step1Desc": "创建账户。管理员审批通过后，您才能使用 API。",
+    "step2Title": "创建 API 密钥",
+    "step2Desc": "在 API 密钥页面生成密钥，密钥以 lbk_ 开头。",
+    "step3Title": "创建序列",
+    "step3Desc": "序列是交易的逻辑分组（如实盘账户或模拟账户）。",
+    "step4Title": "上传数据",
+    "step4Desc": "导入合约、外汇汇率、资金变动和成交记录。指标会自动计算。",
+    "step5Title": "查看仪表盘",
+    "step5Desc": "打开 Web 界面查看权益曲线、回撤、夏普比率和逐笔交易统计。"
+  },
+  "concepts": {
+    "title": "核心概念",
+    "series": {
+      "title": "序列",
+      "desc": "一个逻辑账本 —— 实盘账户、模拟账户或回测。所有交易归属于一个序列。"
+    },
+    "strategy": {
+      "title": "策略",
+      "desc": "命名的交易方法（如 'momentum-equity'）。策略会根据成交数据自动创建。"
+    },
+    "instrument": {
+      "title": "合约",
+      "desc": "带资产类别、乘数和币种的交易标的。请先注册合约再提交成交数据。"
+    },
+    "fill": {
+      "title": "成交",
+      "desc": "单笔执行 —— 买入或卖出，包含数量、价格、费用和时间戳。数据的核心单元。"
+    }
+  },
+  "ingestion": {
+    "title": "数据导入",
+    "createSeries": "创建新序列。返回一个 series_id，用于后续所有数据导入调用。",
+    "registerInstruments": "为序列注册合约。每个合约包含符号、资产类别（future/crypto/fx/equity）、乘数和币种。必须在提交成交数据之前先注册。",
+    "postFxRates": "提交外汇汇率用于货币转换。每条记录包含 ccy_from、ccy_to、时间戳和汇率。多币种组合必填。",
+    "postFundMovements": "提交资金流水：入金、出金和跨策略转账。用于计算资金基数和指数化收益。",
+    "postFills": "批量提交成交记录 —— 这是主要的数据导入接口。每条成交记录有唯一的 client_fill_id（用于幂等）、策略、符号、方向、数量、价格、费用和 UTC 时间戳。成交记录会与最新的合约注册信息匹配，以查找乘数和币种。"
+  },
+  "reference": {
+    "title": "API 参考",
+    "method": "方法",
+    "endpoint": "接口",
+    "auth": "认证",
+    "description": "说明"
+  },
+  "endpoints": {
+    "createSeries": "创建新序列",
+    "listSeries": "列出序列及策略、汇总统计（盈亏、资金、最近导入）",
+    "getSeries": "获取序列详情及合约信息",
+    "getValidationConfig": "获取成交验证阈值",
+    "updateValidationConfig": "更新成交验证阈值",
+    "registerInstruments": "注册/更新合约",
+    "postFxRates": "提交外汇汇率（批量）",
+    "postFundMovements": "提交资金变动（批量）",
+    "postFills": "批量导入成交",
+    "voidFills": "按 client_fill_id 作废成交",
+    "getMetrics": "计算指标 — ?level=&strategy=&symbol=&date_from=&date_to=",
+    "postBenchmark": "提交基准 NAV 序列用于计算 beta/alpha",
+    "compare": "对比 2 个以上序列/策略（level=account|strategy, strategy_keys, 指标 + 权益曲线）",
+    "register": "注册新用户账户",
+    "login": "登录（返回 JWT 令牌对）",
+    "refresh": "刷新访问令牌",
+    "getMe": "获取当前用户信息",
+    "createApiKey": "创建 API 密钥",
+    "listApiKeys": "列出 API 密钥（仅前缀）",
+    "revokeApiKey": "吊销 API 密钥",
+    "health": "健康检查 — 返回 {\"status\":\"ok\"}"
+  },
+  "footer": {
+    "platform": "LiveBoard — 交易分析平台",
+    "signIn": "登录",
+    "register": "注册"
+  }
+}

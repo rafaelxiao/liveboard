@@ -1,0 +1,128 @@
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Physical hues (UX §1.2) */
+:root {
+  --hue-red: 244 63 94;      /* #F43F5E rose-500 */
+  --hue-green: 16 185 129;   /* #10B981 emerald-500 */
+}
+
+/* Dark mode (default) */
+:root,
+[data-theme="dark"] {
+  --bg-app: 10 10 15;          /* #0A0A0F */
+  --bg-surface: 17 17 24;      /* #111118 */
+  --bg-surface-2: 24 24 31;    /* #18181F */
+  --bg-surface-3: 30 30 40;    /* #1E1E28 */
+  --border-subtle: 30 41 59;
+  --border-default: 51 65 85;  /* #334155 */
+  --border-strong: 71 85 105;  /* #475569 */
+  --text-primary: 241 245 249; /* #F1F5F9 */
+  --text-secondary: 148 163 184;
+  --text-muted: 100 116 139;   /* #64748B */
+  --text-tertiary: 100 116 139;
+  --text-disabled: 100 116 139;
+  --accent-primary: 30 64 175;     /* #1E40AF indigo-800 */
+  --accent-primary-hover: 59 130 246;
+  --focus-ring: 147 197 253;        /* #93C5FD */
+  --pnl-neutral: 148 163 184;
+  --success-ui: 16 185 129;   /* fixed emerald */
+  --danger-ui: 239 68 68;     /* #EF4444 red-500 */
+  --warning: 245 158 11;
+  --info: 56 189 248;
+}
+
+/* Light mode */
+[data-theme="light"] {
+  --bg-app: 248 250 252;
+  --bg-surface: 255 255 255;
+  --bg-surface-2: 241 245 249;
+  --bg-surface-3: 226 232 240;
+  --border-subtle: 226 232 240;
+  --border-default: 226 232 240;
+  --border-strong: 203 213 225;
+  --text-primary: 15 23 42;
+  --text-secondary: 51 65 85;
+  --text-muted: 71 85 105;
+  --text-tertiary: 100 116 139;
+  --text-disabled: 148 163 184;
+  --accent-primary: 37 99 235;
+  --accent-primary-hover: 59 130 246;
+  --pnl-neutral: 100 116 139;
+  --hue-red: 225 29 72;     /* #E11D48 */
+  --hue-green: 5 150 105;   /* #059669 */
+  --success-ui: 5 150 105;
+  --danger-ui: 225 29 72;
+  --warning: 217 119 6;
+  --info: 2 132 199;
+}
+
+/* P/L scheme resolution (UX §1.2): red-up DEFAULT, green-up alternative.
+   Semantic gain/loss map onto physical hues, flipped by the scheme. */
+:root,
+[data-pnl="red-up"] {
+  --pnl-gain: var(--hue-red);
+  --pnl-loss: var(--hue-green);
+}
+[data-pnl="green-up"] {
+  --pnl-gain: var(--hue-green);
+  --pnl-loss: var(--hue-red);
+}
+
+body {
+  @apply bg-app text-secondary font-sans antialiased transition-colors duration-150;
+}
+
+/* ── Accessibility ── */
+
+/* Respect OS reduced-motion preference: disable animations, shimmer, transitions */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .animate-pulse {
+    animation: none !important;
+    opacity: 0.5;
+  }
+}
+
+/* Focus ring on all interactive elements */
+*:focus-visible {
+  @apply outline-none ring-2 ring-offset-2;
+  ring-color: rgb(var(--focus-ring));
+  border-radius: 4px;
+}
+
+/* Skip-link for keyboard users */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0;
+  margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0;
+}
+
+/* Responsive sidebar collapse at smaller viewports */
+@media (max-width: 1023px) {
+  .sidebar-collapsible {
+    width: 3rem !important;
+    overflow: hidden;
+  }
+  .sidebar-collapsible .sidebar-label,
+  .sidebar-collapsible .sidebar-brand,
+  .sidebar-collapsible hr {
+    display: none;
+  }
+}
+
+/* Responsive fixes for mobile tables */
+@media (max-width: 768px) {
+  .responsive-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .responsive-card-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
