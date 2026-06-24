@@ -7,6 +7,7 @@ export interface DashboardParams {
   symbol?: string;
   from?: string;
   to?: string;
+  trade_grouping?: string;
 }
 
 export function paramsToSearch(p: DashboardParams): string {
@@ -35,4 +36,5 @@ export function searchToParams(qs: string): DashboardParams {
 export const DEFAULT_PARAMS: DashboardParams = {
   series: 0,
   level: "account",
+  trade_grouping: "day",
 };

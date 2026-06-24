@@ -33,7 +33,7 @@ describe('SeriesListPage create form (L2)', () => {
 
   it('posts base_currency and session_tz and refreshes the list', async () => {
     let body: any = null;
-    server.use(http.post('/api/series', async ({ request }) => {
+    server.use(http.post('/liveboard/api/v1/series', async ({ request }) => {
       body = await request.json();
       return HttpResponse.json({ series_id: 99 }, { status: 201 });
     }));

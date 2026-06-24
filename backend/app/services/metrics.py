@@ -35,6 +35,39 @@ def trade_date(ts: datetime, session_tz: str) -> date:
 # ---------------------------------------------------------------------------
 
 
+def _group_rts_by_day(rts: list[RoundTrip], tz) -> list[RoundTrip]:
+    """Merge round-trips on the same trade date into a single synthetic round-trip.
+
+    For intraday strategies, grouping by day makes win-rate and largest-win/loss
+    reflect daily P&L rather than per-scalp P&L.
+    """
+    from collections import defaultdict
+    from copy import copy
+
+    by_day: dict[date, list[RoundTrip]] = defaultdict(list)
+    for rt in rts:
+        td = trade_date(rt.close_ts, tz)
+        by_day[td].append(rt)
+
+    grouped: list[RoundTrip] = []
+    for td in sorted(by_day):
+        day_rts = by_day[td]
+        net = sum((rt.net_pnl for rt in day_rts), Decimal("0"))
+        gross = sum((rt.gross_pnl for rt in day_rts), Decimal("0"))
+        fees = sum((rt.total_fees for rt in day_rts), Decimal("0"))
+        last_ts = max(rt.close_ts for rt in day_rts)
+        first_ts = min(rt.open_ts for rt in day_rts)
+        first = day_rts[0]
+        syn = copy(first)
+        syn.net_pnl = net
+        syn.gross_pnl = gross
+        syn.total_fees = fees
+        syn.open_ts = first_ts
+        syn.close_ts = last_ts
+        grouped.append(syn)
+    return grouped
+
+
 def trade_stats(rts: list[RoundTrip]) -> dict:
     n = len(rts)
     gross = sum((rt.gross_pnl for rt in rts), Decimal("0"))
@@ -102,9 +135,15 @@ def trade_stats(rts: list[RoundTrip]) -> dict:
 
 
 def symbol_contribution(symbol_net: Decimal, strategy_net: Decimal) -> Decimal | None:
+    """Signed contribution: positive = helped strategy, negative = hurt.
+
+    Uses abs(strategy_net) as denominator so signs are intuitive:
+      - losing symbol in a losing strategy → negative (added to loss)
+      - winning symbol in a losing strategy → positive (offset loss)
+    """
     if strategy_net == 0:
         return None
-    return (symbol_net / strategy_net).quantize(_RATIO_Q)
+    return (symbol_net / abs(strategy_net)).quantize(_RATIO_Q)
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +320,7 @@ def compute_metrics(
     date_from=None,
     date_to=None,
     trade_view="lot",
+    trade_grouping="lot",
     active_days_only=False,
 ):
     from app.models.benchmark_return import BenchmarkReturn
@@ -314,19 +354,18 @@ def compute_metrics(
     open_positions_exist = fees_open != Decimal("0") or _has_open_positions(fills, instruments)
 
     # 3. capital base
+    last_ts = max((rt.close_ts for rt in rts), default=None)
     if level == "symbol":
-        capital_base = None
+        capital_base = capital.strategy_base(session, series_id, strat_id, last_ts) if strat_id is not None else None
     elif level == "strategy":
-        last_ts = max((rt.close_ts for rt in rts), default=None)
         capital_base = capital.strategy_base(session, series_id, strat_id, last_ts)
     else:
-        last_ts = max((rt.close_ts for rt in rts), default=None)
         capital_base = capital.account_base(session, series_id, last_ts)
 
     # 4. equity + indexed + drawdown
     curve = realized_equity_curve(rts)
     idx = indexed_curve(curve, capital_base)
-    dd = drawdown_series(curve)
+    dd = drawdown_series(curve, capital_base)
     max_dd = max_drawdown(dd)
 
     # 5. risk metrics (account/strategy only)
@@ -360,7 +399,8 @@ def compute_metrics(
         sortino_val = apply_suppression(sortino_val, flags["sharpe_suppressed"])
 
     # 7. trade stats
-    stats = trade_stats(rts)
+    stats_rts = _group_rts_by_day(rts, tz) if trade_grouping == "day" else rts
+    stats = trade_stats(stats_rts)
 
     # 8. symbol contribution
     contribution = None
@@ -397,7 +437,7 @@ def compute_metrics(
     # 10. assemble
     # 7. available strategies and symbols (for frontend pickers)
     avail_strategies = _get_series_strategies(session, series_id)
-    avail_symbols = _get_series_symbols(session, series_id)
+    avail_symbols = _get_series_symbols(session, series_id, strategy)
 
     meta = MetaBlock(
         level=level,
@@ -531,7 +571,38 @@ def indexed_curve(curve, capital_base):
     return [cum / capital_base for _, cum in curve]
 
 
-def drawdown_series(curve):
+def chain_return_curve(rts):
+    """Cumulative return curve by chaining per-trade returns.
+
+    Each round-trip's return = gross_pnl / (entry_price × qty).
+    Cumulative = ∏(1 + ret) − 1.  Used at symbol level where there is no
+    capital base.
+    """
+    if not rts:
+        return []
+    ordered = sorted(rts, key=lambda rt: rt.close_ts)
+    cum = Decimal("1")
+    out = []
+    for rt in ordered:
+        denom = rt.entry_price * rt.qty
+        if denom != 0:
+            ret = rt.gross_pnl / denom
+        else:
+            ret = Decimal("0")
+        cum *= (1 + ret)
+        out.append((rt.close_ts, cum - Decimal("1")))
+    return out
+
+
+def drawdown_series(curve, capital_base=None):
+    """Compute drawdown series.
+
+    drawdown_pct uses total account value as the denominator:
+      pct = (cum - peak) / (peak + capital_base)
+    where peak is the highest cumulative PnL observed so far.
+    This prevents absurd percentages when peak profit is small relative to
+    invested capital (e.g. +8K profit on 625K capital).
+    """
     if not curve:
         return []
     peak = Decimal("-Infinity")
@@ -540,7 +611,9 @@ def drawdown_series(curve):
         if cum > peak:
             peak = cum
         dd = cum - peak
-        pct = dd / peak if peak != 0 else Decimal("0")
+        # Denominator = total account value at peak (capital + peak profit)
+        denom = (peak + capital_base) if capital_base is not None else peak
+        pct = dd / denom if denom != 0 else Decimal("0")
         out.append((ts, dd, pct))
     return out
 
@@ -755,15 +828,19 @@ def _get_series_strategies(session, series_id: int) -> list[str]:
     return sorted(rows)
 
 
-def _get_series_symbols(session, series_id: int) -> list[str]:
-    """Return all distinct traded symbols for a series."""
+def _get_series_symbols(session, series_id: int, strategy: str | None = None) -> list[str]:
+    """Return distinct traded symbols for a series, optionally filtered by strategy name."""
     from sqlalchemy import select
 
     from app.models.fill import Fill
+    from app.models.strategy import Strategy
 
-    rows = session.scalars(
-        select(Fill.symbol).where(Fill.series_id == series_id, Fill.voided_at.is_(None)).distinct()
-    ).all()
+    q = select(Fill.symbol).where(Fill.series_id == series_id, Fill.voided_at.is_(None))
+    if strategy is not None:
+        q = q.join(Strategy, Fill.strategy_id == Strategy.id).where(
+            Strategy.name_key == strategy.strip().lower()
+        )
+    rows = session.scalars(q.distinct()).all()
     return sorted(rows)
 
 
@@ -820,7 +897,7 @@ def _symbol_contributions(rts, base_ccy, level):
         result.append({
             "symbol": symbol,
             "pnl": str(contrib),
-            "pct": str(contrib / total) if total != 0 else "0",
+            "pct": str(contrib / abs(total)) if total != 0 else "0",
         })
     result.sort(key=lambda x: abs(Decimal(x["pnl"])), reverse=True)
     return result

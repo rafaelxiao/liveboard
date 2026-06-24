@@ -69,6 +69,7 @@
     "postFundMovements": "Post capital movements (batched)",
     "postFills": "Ingest fills in batch",
     "voidFills": "Void fills by client_fill_id",
+    "deleteFillsByStrategy": "Void all fills for a strategy. ?strategy=name&date_from=&date_to=",
     "getMetrics": "Compute metrics — ?level=&strategy=&symbol=&date_from=&date_to=",
     "postBenchmark": "Post benchmark NAV series for beta/alpha",
     "compare": "Compare 2+ series/strategies (level=account|strategy, strategy_keys, metrics + equity curves)",
@@ -79,7 +80,12 @@
     "createApiKey": "Create an API key",
     "listApiKeys": "List API keys (prefix only)",
     "revokeApiKey": "Revoke an API key",
-    "health": "Health check — returns {\"status\":\"ok\"}"
+    "createShare": "Create a share link for a series (optional expires_in_days)",
+    "listShares": "List active share links for a series",
+    "revokeShare": "Revoke a share link",
+    "viewShared": "Public view of a shared series (no auth)",
+    "health": "Health check — returns {\"status\":\"ok\"}",
+    "getFundMovements": "List fund movements"
   },
   "footer": {
     "platform": "LiveBoard — Trade Analytics Platform",

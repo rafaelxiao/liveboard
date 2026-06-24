@@ -18,7 +18,7 @@ export function makeEnvelope(overrides: Partial<{
   return {
     meta: {
       level: "account", base_currency: "USD", session_tz: "America/New_York",
-      date_range: { from: "2026-01-01", to: "2026-06-18" },
+      date_range: { from_: "2026-01-01", to: "2026-06-18" },
       capital_base: "100000.00",
       sample: { round_trips: 142, active_days: 88 },
       flags,

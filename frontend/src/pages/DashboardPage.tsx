@@ -1,39 +1,64 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { useMetrics } from "../state/useMetrics";
 import { useSeriesList } from "../state/useSeries";
 import { searchToParams, paramsToSearch, DEFAULT_PARAMS, type DashboardParams } from "../lib/dashboardParams";
-import { useBreadcrumbStore, type BreadcrumbSegment } from "../state/breadcrumbStore";
+import { useBreadcrumbStore } from "../state/breadcrumbStore";
+import { useTradeGroupingStore } from "../state/tradeGroupingStore";
 import MetricCardGrid from "../components/MetricCardGrid";
 import HierarchyNav from "../components/HierarchyNav";
 import DateRangePicker from "../components/DateRangePicker";
 
 import EquityChart from "../components/EquityChart";
 import DrawdownChart from "../components/DrawdownChart";
-import ContributionCard from "../components/ContributionCard";
 import ContributionBars from "../components/ContributionBars";
 import AlertBanner from "../components/AlertBanner";
 import { FxMissingBanner, LowSampleFootnote } from "../components/FlagBanners";
 import { SkeletonCard, SkeletonChart } from "../components/SkeletonCard";
-import { Layers, TrendingUp, BarChart3, Hash } from "lucide-react";
+import { Layers, Hash, ArrowRight } from "lucide-react";
 import { formatCurrency } from "../lib/format";
+import ShareDialog from "../components/ShareDialog";
 
 export default function DashboardPage() {
   const { t } = useTranslation(["dashboard", "common"]);
   const [searchParams, setSearchParams] = useSearchParams();
-  const params = searchParams.get("series")
+  const rawParams = searchParams.get("series")
     ? searchToParams(searchParams.toString())
     : DEFAULT_PARAMS;
 
-  const { data, isLoading, isError, refetch } = useMetrics(params);
+  // Always derive level from strategy/symbol, ignoring the URL level param
+  const params: DashboardParams = {
+    ...rawParams,
+    level: rawParams.symbol ? "symbol" : rawParams.strategy ? "strategy" : "account",
+  };
+
+  const tradeGrouping = useTradeGroupingStore((s) => s.grouping);
+
+  const effectiveParams = { ...params, trade_grouping: tradeGrouping };
+
+  const { data, isLoading, isError, refetch } = useMetrics(effectiveParams);
   const { data: seriesList } = useSeriesList();
   const [equityMode, setEquityMode] = useState<"absolute" | "indexed">("absolute");
   const [drawdownMode, setDrawdownMode] = useState<"absolute" | "indexed">("absolute");
 
+  // Cache last-known strategies/symbols so nav doesn't flash during refetch
+  const lastStrategies = useRef<string[]>([]);
+  const lastSymbols = useRef<string[]>([]);
+  if (data) {
+    lastStrategies.current = data.meta.strategies ?? [];
+    lastSymbols.current = data.meta.symbols ?? [];
+  }
+
+  const deriveLevel = (p: Partial<DashboardParams>): "account" | "strategy" | "symbol" => {
+    const symbol = "symbol" in p ? p.symbol : params.symbol;
+    const strategy = "strategy" in p ? p.strategy : params.strategy;
+    return symbol ? "symbol" : strategy ? "strategy" : "account";
+  };
+
   const update = useCallback(
     (patch: Partial<DashboardParams>) => {
-      const next = { ...params, ...patch };
+      const next = { ...params, ...patch, level: deriveLevel(patch) };
       setSearchParams(new URLSearchParams(paramsToSearch(next)));
     },
     [params, setSearchParams],
@@ -50,22 +75,9 @@ export default function DashboardPage() {
   const seriesName = seriesList?.find((s) => s.id === params.series)?.name ?? `Series ${params.series}`;
 
   useEffect(() => {
-    const segs: BreadcrumbSegment[] = [];
-    if (level === "strategy" || level === "symbol") {
-      segs.push({
-        label: "Account",
-        onClick: () => update({ strategy: undefined, symbol: undefined }),
-      });
-    }
-    if (params.strategy) {
-      segs.push({ label: params.strategy });
-    }
-    if (params.symbol) {
-      segs.push({ label: params.symbol });
-    }
-    setBreadcrumb(segs);
+    setBreadcrumb([]);
     return () => setBreadcrumb([]);
-  }, [level, params.strategy, params.symbol, setBreadcrumb, update]);
+  }, [setBreadcrumb]);
 
   const isSymbol = level === "symbol";
 
@@ -91,59 +103,91 @@ export default function DashboardPage() {
                       ? "bg-purple-500/20 text-purple-400 border border-purple-500/30"
                       : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                   }`}>
-                    {t(s.tag || "real")}
+                    {t(s.tag || "live")}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[10px] uppercase tracking-wide text-muted">{t("Currency")}</span>
                     <span className="font-mono text-primary">{s.base_currency}</span>
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[10px] uppercase tracking-wide text-muted">
-                      <Hash size={10} className="inline mr-1" />
-                      {t("Fills")}
+                      <Hash size={10} className="inline mr-1" />{t("Fills")}
                     </span>
                     <span className="font-mono text-primary">{s.counts?.fills ?? "—"}</span>
                   </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] uppercase tracking-wide text-muted">
-                      <BarChart3 size={10} className="inline mr-1" />
-                      {t("Strategies")}
-                    </span>
-                    <span className="font-mono text-primary">{s.counts?.strategies ?? "—"}</span>
+                  <div className="col-span-2 border-t border-border-subtle pt-2">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-[10px] uppercase tracking-wide text-muted">{t("Start Capital")}</span>
+                      <span className="font-mono text-sm font-semibold text-primary">
+                        {s.summary?.capital_base ? formatCurrency(s.summary.capital_base, s.base_currency) : "—"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] uppercase tracking-wide text-muted">
-                      <TrendingUp size={10} className="inline mr-1" />
-                      {t("Capital")}
-                    </span>
-                    <span className="font-mono text-primary">
-                      {s.summary?.capital_base
-                        ? formatCurrency(s.summary.capital_base, s.base_currency)
-                        : "—"}
-                    </span>
+                  <div className="col-span-2">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-[10px] uppercase tracking-wide text-muted">{t("Net PnL")}</span>
+                      <span className={`font-mono text-sm font-semibold ${
+                        s.summary?.cumulative_pnl
+                          ? Number(s.summary.cumulative_pnl) >= 0 ? "text-pnl-gain" : "text-pnl-loss"
+                          : "text-muted"
+                      }`}>
+                        {s.summary?.cumulative_pnl ? formatCurrency(s.summary.cumulative_pnl, s.base_currency) : "—"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="col-span-2 flex flex-col gap-0.5">
-                    <span className="text-[10px] uppercase tracking-wide text-muted">
-                      {t("Approx. Net PnL")}
-                    </span>
-                    <span className={`font-mono text-sm font-semibold ${
-                      s.summary?.cumulative_pnl
-                        ? Number(s.summary.cumulative_pnl) >= 0
-                          ? "text-pnl-gain"
-                          : "text-pnl-loss"
-                        : "text-muted"
-                    }`}>
-                      {s.summary?.cumulative_pnl
-                        ? formatCurrency(s.summary.cumulative_pnl, s.base_currency)
-                        : "—"}
-                    </span>
+                  <div className="col-span-2">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-[10px] uppercase tracking-wide text-muted">{t("End Capital")}</span>
+                      <span className={`font-mono text-sm font-semibold ${
+                        s.summary?.end_capital
+                          ? Number(s.summary.end_capital) >= Number(s.summary.capital_base || "0") ? "text-pnl-gain" : "text-pnl-loss"
+                          : "text-muted"
+                      }`}>
+                        {s.summary?.end_capital ? formatCurrency(s.summary.end_capital, s.base_currency) : "—"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="col-span-2 flex flex-col gap-0.5">
-                    <span className="text-[10px] uppercase tracking-wide text-muted">{t("Last Ingest")}</span>
-                    <span className="font-mono text-xs text-secondary">
-                      {s.last_ingest_at ? new Date(s.last_ingest_at).toLocaleDateString() : "—"}
+                  <div className="col-span-2 border-t border-border-subtle pt-2">
+                    <div className="grid grid-cols-3 gap-x-3">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] uppercase tracking-wide text-muted">{t("Return")}</span>
+                        <span className={`font-mono text-sm font-semibold ${
+                          s.summary?.return_pct
+                            ? Number(s.summary.return_pct) >= 0 ? "text-pnl-gain" : "text-pnl-loss"
+                            : "text-muted"
+                        }`}>
+                          {s.summary?.return_pct ? (Number(s.summary.return_pct) * 100).toFixed(2) + "%" : "—"}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] uppercase tracking-wide text-muted">{t("Sharpe")}</span>
+                        <span className={`font-mono text-sm font-semibold ${
+                          s.summary?.sharpe
+                            ? Number(s.summary.sharpe) >= 1 ? "text-pnl-gain" : Number(s.summary.sharpe) >= 0 ? "text-accent" : "text-pnl-loss"
+                            : "text-muted"
+                        }`}>
+                          {s.summary?.sharpe ? Number(s.summary.sharpe).toFixed(3) : "—"}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[10px] uppercase tracking-wide text-muted">{t("Max Drawdown")}</span>
+                        <span className="font-mono text-sm font-semibold text-pnl-loss">
+                          {s.summary?.max_drawdown_pct
+                            ? (Number(s.summary.max_drawdown_pct) * 100).toFixed(1) + "%"
+                            : "—"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-span-2 border-t border-border-subtle pt-1.5">
+                    <span className="text-[10px] text-muted flex items-center gap-1">
+                      {s.summary?.trade_start && s.summary?.trade_end ? (
+                        <>{s.summary.trade_start} <ArrowRight size={12} className="inline-block align-middle" /> {s.summary.trade_end}</>
+                      ) : s.last_ingest_at ? (
+                        `Ingested ${new Date(s.last_ingest_at).toLocaleDateString()}`
+                      ) : "—"}
                     </span>
                   </div>
                 </div>
@@ -168,22 +212,25 @@ export default function DashboardPage() {
         <div className="flex-1 min-w-0">
           <HierarchyNav
             seriesName={seriesName}
-            seriesId={params.series ?? 0}
-            level={level}
-            strategies={data?.meta.strategies ?? []}
-            symbols={data?.meta.symbols ?? []}
+            strategies={lastStrategies.current}
+            symbols={lastSymbols.current}
             selectedStrategy={params.strategy}
             selectedSymbol={params.symbol}
             onBackToOverview={() => setSearchParams(new URLSearchParams())}
-            onBackToAccount={() => update({ strategy: undefined, symbol: undefined })}
-            onBackToStrategy={() => update({ symbol: undefined })}
-            onSelectStrategy={(s) => update({ strategy: s, symbol: undefined })}
+            onSelectStrategy={(s) => update({ strategy: s || undefined, symbol: undefined })}
             onSelectSymbol={(s) => update({ symbol: s })}
           />
         </div>
+        {params.series && (
+          <ShareDialog
+            seriesId={params.series}
+            seriesName={seriesName}
+            tradeStart={seriesList?.find((s) => s.id === params.series)?.summary?.trade_start}
+          />
+        )}
       </div>
 
-      {/* Date range — dedicated line */}
+      {/* Date range */}
       <DateRangePicker
         from={params.from}
         to={params.to}
@@ -221,29 +268,21 @@ export default function DashboardPage() {
             />
           )}
 
-          {/* Symbol-level contribution card (symbol level only) */}
-          {isSymbol && data.metrics.contribution_pct != null && (
-            <ContributionCard value={data.metrics.contribution_pct} />
-          )}
-
-          {/* Charts — hidden at symbol level (no return-based metrics) */}
-          {!isSymbol && (
-            <>
-              <EquityChart
-                points={data.equity_curve}
-                baseCurrency={data.meta.base_currency}
-                mode={equityMode}
-                onModeChange={setEquityMode}
-              />
-              <DrawdownChart
-                points={data.drawdown_series}
-                baseCurrency={data.meta.base_currency}
-                showCaveat={data.meta.flags.open_positions_exist}
-                mode={drawdownMode}
-                onModeChange={setDrawdownMode}
-              />
-            </>
-          )}
+          {/* Charts */}
+          <EquityChart
+            series={[{ name: "", points: data.equity_curve }]}
+            baseCurrency={data.meta.base_currency}
+            mode={equityMode}
+            onModeChange={setEquityMode}
+            hideModeToggle={isSymbol}
+          />
+          <DrawdownChart
+            series={[{ name: "", points: data.drawdown_series }]}
+            baseCurrency={data.meta.base_currency}
+            showCaveat={data.meta.flags.open_positions_exist}
+            mode={drawdownMode}
+            onModeChange={setDrawdownMode}
+          />
 
           {/* Suppressed flags footnote */}
           {data.meta.flags.sharpe_suppressed && (

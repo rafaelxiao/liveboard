@@ -5,7 +5,7 @@ import { server } from "../test/setup";
 import { ApiError } from "../lib/types";
 import { apiFetch, configureClient } from "./client";
 
-const BASE = "/api";
+const BASE = "/liveboard/api/v1";
 
 describe("apiFetch", () => {
   beforeEach(() => {

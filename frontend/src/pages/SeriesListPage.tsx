@@ -146,8 +146,12 @@ export default function SeriesListPage() {
               </div>
               <div>
                 <label htmlFor="series-tag" className="mb-1 block text-xs uppercase text-muted">{t("dashboard:Tag")}</label>
-                <input id="series-tag" value={tag} onChange={(e) => setTag(e.target.value)}
-                  className="w-full rounded-sm border border-border-default bg-surface px-2 py-1.5 text-sm text-secondary" />
+                <select id="series-tag" value={tag} onChange={(e) => setTag(e.target.value)}
+                  className="w-full rounded-sm border border-border-default bg-surface px-2 py-1.5 text-sm text-secondary">
+                  <option value="">{t("dashboard:Select tag")}</option>
+                  <option value="live">{t("live")}</option>
+                  <option value="sim">{t("sim")}</option>
+                </select>
               </div>
               <div>
                 <label htmlFor="series-ccy" className="mb-1 block text-xs uppercase text-muted">{t("dashboard:Base currency")}</label>

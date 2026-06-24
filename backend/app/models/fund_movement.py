@@ -5,10 +5,14 @@ from sqlalchemy import DateTime, ForeignKey, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from sqlalchemy import UniqueConstraint
 
 
 class FundMovement(Base):
     __tablename__ = "fund_movements"
+    __table_args__ = (
+        UniqueConstraint("series_id", "client_movement_id", name="uq_fund_movements_series_client_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     series_id: Mapped[int] = mapped_column(
@@ -32,3 +36,4 @@ class FundMovement(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
     voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    client_movement_id: Mapped[str] = mapped_column(String(128), nullable=False, default="")

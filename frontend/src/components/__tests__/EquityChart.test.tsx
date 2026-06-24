@@ -1,28 +1,49 @@
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import EquityChart from '../EquityChart';
+import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import EquityChart from "../EquityChart";
 
 const points = [
-  { ts: '2026-01-02T20:00:00Z', realized_pnl: '320.00', indexed_return: '0.0032' },
-  { ts: '2026-01-03T20:00:00Z', realized_pnl: '540.00', indexed_return: '0.0054' },
+  { ts: "2025-01-01T12:00:00Z", realized_pnl: "100", indexed_return: "0.05" },
+  { ts: "2025-01-02T12:00:00Z", realized_pnl: "200", indexed_return: "0.10" },
 ];
 
-describe('EquityChart', () => {
-  it('renders in absolute mode', () => {
-    render(<EquityChart points={points} baseCurrency="USD" mode="absolute" onModeChange={() => {}} />);
-    expect(screen.getByText(/Cumulative PnL \(USD\)/i)).toBeInTheDocument();
+describe("EquityChart", () => {
+  it("renders in absolute mode", () => {
+    render(
+      <EquityChart
+        series={[{ name: "test", points }]}
+        baseCurrency="USD"
+        mode="absolute"
+        onModeChange={() => {}}
+      />
+    );
+    expect(screen.getByText("Equity Curve")).toBeInTheDocument();
   });
 
-  it('renders in indexed mode', () => {
-    render(<EquityChart points={points} baseCurrency="USD" mode="indexed" onModeChange={() => {}} />);
-    expect(screen.getByText(/Cumulative Return/i)).toBeInTheDocument();
+  it("renders in indexed mode", () => {
+    render(
+      <EquityChart
+        series={[{ name: "test", points }]}
+        baseCurrency="USD"
+        mode="indexed"
+        onModeChange={() => {}}
+      />
+    );
+    expect(screen.getByText("Equity Curve")).toBeInTheDocument();
   });
 
-  it('calls onModeChange when Indexed toggle pressed', async () => {
+  it("calls onModeChange when Indexed toggle pressed", async () => {
     const onModeChange = vi.fn();
-    render(<EquityChart points={points} baseCurrency="USD" mode="absolute" onModeChange={onModeChange} />);
-    await userEvent.click(screen.getByRole('button', { name: /indexed/i }));
-    expect(onModeChange).toHaveBeenCalledWith('indexed');
+    render(
+      <EquityChart
+        series={[{ name: "test", points }]}
+        baseCurrency="USD"
+        mode="absolute"
+        onModeChange={onModeChange}
+      />
+    );
+    await userEvent.click(screen.getByRole("button", { name: /indexed/i }));
+    expect(onModeChange).toHaveBeenCalledWith("indexed");
   });
 });

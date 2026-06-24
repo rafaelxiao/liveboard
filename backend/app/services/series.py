@@ -19,6 +19,7 @@ from app.schemas.series import (
     StrategyBrief,
     SeriesSummary,
 )
+from app.services.pairing import pair_fills
 
 
 class SeriesNotFound(Exception):
@@ -146,18 +147,43 @@ def list_series(session: Session, *, user_id: int) -> list[SeriesOut]:
             elif fm.to_bucket == Bucket.EXTERNAL:
                 cap -= fm.amount
 
-        # Cumulative PnL: sum of fill notional + fees
-        cum_pnl = Decimal("0")
+        # Cumulative PnL: proper round-trip pairing (only closed trades)
         instruments = inst_by_series.get(sid, {})
-        for f in fills_by_series.get(sid, []):
-            inst = instruments.get(f.symbol)
-            multiplier = inst.multiplier if inst and inst.multiplier else Decimal("1")
-            notional = f.price * abs(f.qty) * multiplier
-            fees = f.commission + f.exchange_fee + f.regulatory_fee + f.financing_fee
-            if f.side.upper() == "BUY":
-                cum_pnl += -notional - fees
-            else:
-                cum_pnl += notional - fees
+        fills_list = fills_by_series.get(sid, [])
+        cum_pnl = Decimal("0")
+        if fills_list:
+            rts = pair_fills(fills_list, instruments)
+            cum_pnl = sum((rt.net_pnl for rt in rts), Decimal("0"))
+
+        # End capital and return
+        end_cap = cap + cum_pnl
+        return_pct = (cum_pnl / cap).quantize(Decimal("0.0001")) if cap != 0 else None
+
+        # Sharpe — compute via full metrics pipeline if there are fills
+        sharpe_val: str | None = None
+        max_dd_val: str | None = None
+        max_dd_pct_val: str | None = None
+        if fills_list:
+            try:
+                from app.services.metrics import compute_metrics
+                result = compute_metrics(
+                    session, sid, "account",
+                    strategy=None, symbol=None,
+                    date_from=None, date_to=None,
+                    trade_view="lot", active_days_only=False,
+                )
+                sharpe_val = result.metrics.sharpe
+                max_dd_val = result.metrics.max_drawdown
+                if max_dd_val is not None and cap != 0:
+                    max_dd_pct_val = str(Decimal(max_dd_val) / cap)
+            except Exception:
+                sharpe_val = None
+                max_dd_val = None
+                max_dd_pct_val = None
+
+        # Trade date range from fill timestamps
+        trade_start = min(f.ts for f in fills_list).strftime("%Y-%m-%d") if fills_list else None
+        trade_end = max(f.ts for f in fills_list).strftime("%Y-%m-%d") if fills_list else None
 
         out.append(
             SeriesOut(
@@ -176,6 +202,13 @@ def list_series(session: Session, *, user_id: int) -> list[SeriesOut]:
                 summary=SeriesSummary(
                     capital_base=str(cap),
                     cumulative_pnl=str(cum_pnl),
+                    end_capital=str(end_cap),
+                    return_pct=str(return_pct) if return_pct is not None else None,
+                    sharpe=sharpe_val,
+                    max_drawdown=max_dd_val,
+                    max_drawdown_pct=max_dd_pct_val,
+                    trade_start=trade_start,
+                    trade_end=trade_end,
                 ),
                 strategies=[
                     StrategyBrief(**s) for s in strats_by_series.get(sid, [])

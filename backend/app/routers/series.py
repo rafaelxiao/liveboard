@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from decimal import Decimal
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_api_user, get_current_user
+from app.core.deps import get_api_user, get_current_user, get_user
 from app.db import get_db
 from app.models.series import Series
 from app.models.user import User
@@ -33,7 +33,7 @@ def post_series(
 @router.get("/series", response_model=list[SeriesOut])
 def get_series_list(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_user),
 ) -> list[SeriesOut]:
     return list_series(db, user_id=user.id)
 
@@ -42,7 +42,7 @@ def get_series_list(
 def get_series_one(
     series_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_user),
 ) -> SeriesDetailOut:
     try:
         return get_series_detail(db, user_id=user.id, series_id=series_id)
@@ -56,7 +56,7 @@ def get_series_one(
 def get_validation_config(
     series_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_user),
 ) -> ValidationConfigOut:
     series = db.get(Series, series_id)
     if series is None or series.user_id != user.id:
@@ -70,7 +70,7 @@ def update_validation_config(
     series_id: int,
     body: ValidationConfigIn,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_user),
 ) -> ValidationConfigOut:
     series = db.get(Series, series_id)
     if series is None or series.user_id != user.id:

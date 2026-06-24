@@ -1,5 +1,6 @@
 import re
 from datetime import datetime
+from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -15,7 +16,7 @@ class SeriesCreateIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    tag: str | None = None
+    tag: Literal["live", "sim"] | None = None
     notes: str | None = None
     base_currency: str
     session_tz: str
@@ -54,12 +55,19 @@ class SeriesCounts(BaseModel):
 class SeriesSummary(BaseModel):
     capital_base: str | None = None
     cumulative_pnl: str | None = None
+    end_capital: str | None = None
+    return_pct: str | None = None
+    sharpe: str | None = None
+    max_drawdown: str | None = None
+    max_drawdown_pct: str | None = None
+    trade_start: str | None = None
+    trade_end: str | None = None
 
 
 class SeriesOut(BaseModel):
     id: int
     name: str
-    tag: str | None
+    tag: Literal["live", "sim"] | None
     base_currency: str
     session_tz: str
     created_at: datetime
@@ -82,7 +90,7 @@ class InstrumentDetailOut(BaseModel):
 class SeriesDetailOut(BaseModel):
     id: int
     name: str
-    tag: str | None
+    tag: Literal["live", "sim"] | None
     notes: str | None
     base_currency: str
     session_tz: str
@@ -90,3 +98,32 @@ class SeriesDetailOut(BaseModel):
     strategies: list[str]
     instruments: list[InstrumentDetailOut]
     discovered_symbols: list[str]
+
+
+class ShareLinkCreateIn(BaseModel):
+    expires_in_days: int | None = None  # None = never expires
+    pnl_color_scheme: str | None = None  # "red-up" or "green-up"
+    trade_grouping: str | None = None  # "lot" or "day"
+    lang: str | None = None  # "en" or "zh"
+    custom_slug: str | None = None  # custom URL path
+    date_from: str | None = None  # ISO date, start of the shared data range
+
+
+class ShareLinkOut(BaseModel):
+    id: int
+    token: str
+    slug: str | None = None
+    series_id: int | None = None
+    series_name: str | None = None
+    expires_at: datetime | None
+    created_at: datetime
+    last_accessed_at: datetime | None
+    url: str
+
+
+class SharedSeriesOut(BaseModel):
+    """Public view of a shared series — no auth required."""
+    series: SeriesOut
+    metrics: dict | None = None  # compute_metrics envelope
+    pnl_color_scheme: str | None = None
+    lang: str | None = None

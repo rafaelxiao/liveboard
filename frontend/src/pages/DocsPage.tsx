@@ -82,7 +82,7 @@ function EndpointExample({
 export default function DocsPage() {
   const { t } = useTranslation("docs");
   const isLoggedIn = !!useAuthStore((s) => s.user);
-  const BASE = "http://localhost:8002";
+  const BASE = "/liveboard/api/v1";  // or https://your-host/liveboard/api/v1
   const HEADER = "X-API-Key: $LIVEBOARD_API_KEY";
 
   return (
@@ -90,9 +90,9 @@ export default function DocsPage() {
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border-default bg-surface/80 backdrop-blur-sm">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-          <a href="/docs" className="text-lg font-semibold text-primary font-mono">
+          <Link to="/docs" className="text-lg font-semibold text-primary font-mono">
             LiveBoard
-          </a>
+          </Link>
           <div className="flex items-center gap-4 text-sm">
             <LangToggle />
             <a href="#ingestion" className="text-muted hover:text-secondary transition-colors">{t("nav.ingestion")}</a>
@@ -198,7 +198,7 @@ export default function DocsPage() {
   -H "Content-Type: application/json" \\\\
   -d '{
     "name": "Alpha-Real",
-    "tag": "real",
+    "tag": "live",
     "base_currency": "USD",
     "session_tz": "America/New_York"
   }'`}
@@ -209,7 +209,7 @@ resp = requests.post(
     headers={"X-API-Key": "$LIVEBOARD_API_KEY"},
     json={
         "name": "Alpha-Real",
-        "tag": "real",
+        "tag": "live",
         "base_currency": "USD",
         "session_tz": "America/New_York",
     },
@@ -223,7 +223,7 @@ series_id = resp.json()["series_id"]`}
   },
   body: JSON.stringify({
     name: "Alpha-Real",
-    tag: "real",
+    tag: "live",
     base_currency: "USD",
     session_tz: "America/New_York",
   }),
@@ -312,17 +312,17 @@ const { series_id } = await resp.json();`}
   -H "${HEADER}" \\\\
   -H "Content-Type: application/json" \\\\
   -d '[
-    {"ts": "2024-01-01T09:00:00Z", "from_bucket": "EXTERNAL", "to_bucket": "FREE_CASH", "amount": "2000000", "currency": "USD"},
-    {"ts": "2024-01-02T08:00:00Z", "from_bucket": "FREE_CASH", "to_bucket": "STRATEGY", "to_strategy": "momentum-equity", "amount": "800000", "currency": "USD"},
-    {"ts": "2025-06-01T08:00:00Z", "from_bucket": "STRATEGY", "from_strategy": "momentum-equity", "to_bucket": "STRATEGY", "to_strategy": "mean-rev-crypto", "amount": "100000", "currency": "USD"}
+    {"client_movement_id": "dep-001", "ts": "2024-01-01T09:00:00Z", "from_bucket": "EXTERNAL", "to_bucket": "FREE_CASH", "amount": "2000000", "currency": "USD"},
+    {"client_movement_id": "alloc-001", "ts": "2024-01-02T08:00:00Z", "from_bucket": "FREE_CASH", "to_bucket": "STRATEGY", "to_strategy": "momentum-equity", "amount": "800000", "currency": "USD"},
+    {"client_movement_id": "xfer-001", "ts": "2025-06-01T08:00:00Z", "from_bucket": "STRATEGY", "from_strategy": "momentum-equity", "to_bucket": "STRATEGY", "to_strategy": "mean-rev-crypto", "amount": "100000", "currency": "USD"}
   ]'`}
             python={`requests.post(
     "${BASE}/series/{series_id}/fund-movements",
     headers={"X-API-Key": "$LIVEBOARD_API_KEY"},
     json=[
-        {"ts": "2024-01-01T09:00:00Z", "from_bucket": "EXTERNAL", "to_bucket": "FREE_CASH", "amount": "2000000", "currency": "USD"},
-        {"ts": "2024-01-02T08:00:00Z", "from_bucket": "FREE_CASH", "to_bucket": "STRATEGY", "to_strategy": "momentum-equity", "amount": "800000", "currency": "USD"},
-        {"ts": "2025-06-01T08:00:00Z", "from_bucket": "STRATEGY", "from_strategy": "momentum-equity", "to_bucket": "STRATEGY", "to_strategy": "mean-rev-crypto", "amount": "100000", "currency": "USD"},
+        {"client_movement_id": "dep-001", "ts": "2024-01-01T09:00:00Z", "from_bucket": "EXTERNAL", "to_bucket": "FREE_CASH", "amount": "2000000", "currency": "USD"},
+        {"client_movement_id": "alloc-001", "ts": "2024-01-02T08:00:00Z", "from_bucket": "FREE_CASH", "to_bucket": "STRATEGY", "to_strategy": "momentum-equity", "amount": "800000", "currency": "USD"},
+        {"client_movement_id": "xfer-001", "ts": "2025-06-01T08:00:00Z", "from_bucket": "STRATEGY", "from_strategy": "momentum-equity", "to_bucket": "STRATEGY", "to_strategy": "mean-rev-crypto", "amount": "100000", "currency": "USD"},
     ],
 )`}
             javascript={`await fetch("${BASE}/series/{series_id}/fund-movements", {
@@ -432,27 +432,33 @@ console.log(\`Inserted: \${inserted}, Updated: \${updated}, Rejected: \${rejecte
               </thead>
               <tbody className="divide-y divide-border-subtle">
                 {[
-                  ["POST", "/series", "API Key", t("endpoints.createSeries")],
-                  ["GET", "/series", "JWT", t("endpoints.listSeries")],
-                  ["GET", "/series/{id}", "JWT", t("endpoints.getSeries")],
-                  ["GET", "/series/{id}/validation-config", "JWT", t("endpoints.getValidationConfig")],
-                  ["PATCH", "/series/{id}/validation-config", "JWT", t("endpoints.updateValidationConfig")],
-                  ["POST", "/series/{id}/instruments", "API Key", t("endpoints.registerInstruments")],
-                  ["POST", "/series/{id}/fx-rates", "API Key", t("endpoints.postFxRates")],
-                  ["POST", "/series/{id}/fund-movements", "API Key", t("endpoints.postFundMovements")],
-                  ["POST", "/series/{id}/fills:batch", "API Key", t("endpoints.postFills")],
-                  ["POST", "/series/{id}/fills:void", "API Key", t("endpoints.voidFills")],
-                  ["GET", "/series/{id}/metrics", "JWT", t("endpoints.getMetrics")],
-                  ["POST", "/series/{id}/benchmark", "API Key", t("endpoints.postBenchmark")],
-                  ["POST", "/comparisons", "JWT", t("endpoints.compare")],
-                  ["POST", "/auth/register", "None", t("endpoints.register")],
-                  ["POST", "/auth/login", "None", t("endpoints.login")],
-                  ["POST", "/auth/refresh", "Refresh", t("endpoints.refresh")],
-                  ["GET", "/auth/me", "JWT", t("endpoints.getMe")],
-                  ["POST", "/api-keys", "JWT", t("endpoints.createApiKey")],
-                  ["GET", "/api-keys", "JWT", t("endpoints.listApiKeys")],
-                  ["DELETE", "/api-keys/{id}", "JWT", t("endpoints.revokeApiKey")],
-                  ["GET", "/health", "None", t("endpoints.health")],
+                  ["POST", "/v1/series", "API Key", t("endpoints.createSeries")],
+                  ["GET", "/v1/series", "JWT / Key", t("endpoints.listSeries")],
+                  ["GET", "/v1/series/{id}", "JWT / Key", t("endpoints.getSeries")],
+                  ["GET", "/v1/series/{id}/validation-config", "JWT / Key", t("endpoints.getValidationConfig")],
+                  ["PATCH", "/v1/series/{id}/validation-config", "JWT / Key", t("endpoints.updateValidationConfig")],
+                  ["POST", "/v1/series/{id}/instruments", "API Key", t("endpoints.registerInstruments")],
+                  ["POST", "/v1/series/{id}/fx-rates", "API Key", t("endpoints.postFxRates")],
+                  ["GET", "/v1/series/{id}/fund-movements", "JWT / Key", t("endpoints.getFundMovements")],
+                  ["POST", "/v1/series/{id}/fund-movements", "API Key", t("endpoints.postFundMovements")],
+                  ["POST", "/v1/series/{id}/fills:batch", "API Key", t("endpoints.postFills")],
+                  ["POST", "/v1/series/{id}/fills:void", "API Key", t("endpoints.voidFills")],
+                  ["DELETE", "/v1/series/{id}/fills?strategy=...", "API Key", t("endpoints.deleteFillsByStrategy")],
+                  ["GET", "/v1/series/{id}/metrics", "JWT / Key", t("endpoints.getMetrics")],
+                  ["POST", "/v1/series/{id}/benchmark", "API Key", t("endpoints.postBenchmark")],
+                  ["POST", "/v1/comparisons", "JWT / Key", t("endpoints.compare")],
+                  ["POST", "/v1/auth/register", "None", t("endpoints.register")],
+                  ["POST", "/v1/auth/login", "None", t("endpoints.login")],
+                  ["POST", "/v1/auth/refresh", "Refresh", t("endpoints.refresh")],
+                  ["GET", "/v1/auth/me", "JWT", t("endpoints.getMe")],
+                  ["POST", "/v1/series/{id}/shares", "JWT / Key", t("endpoints.createShare")],
+                  ["GET", "/v1/series/{id}/shares", "JWT / Key", t("endpoints.listShares")],
+                  ["DELETE", "/v1/series/{id}/shares/{linkId}", "JWT / Key", t("endpoints.revokeShare")],
+                  ["GET", "/v1/public/share/{token}", "None", t("endpoints.viewShared")],
+                  ["POST", "/v1/api-keys", "JWT", t("endpoints.createApiKey")],
+                  ["GET", "/v1/api-keys", "JWT", t("endpoints.listApiKeys")],
+                  ["DELETE", "/v1/api-keys/{id}", "JWT", t("endpoints.revokeApiKey")],
+                  ["GET", "/v1/health", "None", t("endpoints.health")],
                 ].map(([method, path, auth, desc]) => (
                   <tr key={`${method}-${path}`} className="hover:bg-surface-2">
                     <td className="px-4 py-2.5">
@@ -474,9 +480,9 @@ console.log(\`Inserted: \${inserted}, Updated: \${updated}, Rejected: \${rejecte
         <footer className="mt-16 border-t border-border-default pt-6 text-center text-xs text-muted">
           <p>
             {t("footer.platform")} &middot;{" "}
-            <a href="/login" className="text-accent hover:underline">{t("footer.signIn")}</a>{" "}
+            <Link to="/login" className="text-accent hover:underline">{t("footer.signIn")}</Link>{" "}
             &middot;{" "}
-            <a href="/register" className="text-accent hover:underline">{t("footer.register")}</a>
+            <Link to="/register" className="text-accent hover:underline">{t("footer.register")}</Link>
           </p>
         </footer>
       </main>

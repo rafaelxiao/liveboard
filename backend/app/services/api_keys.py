@@ -19,7 +19,12 @@ def create_api_key(session: Session, user: User, name: str) -> tuple[ApiKey, str
 
 def list_api_keys(session: Session, user: User) -> list[ApiKey]:
     return list(
-        session.scalars(select(ApiKey).where(ApiKey.user_id == user.id).order_by(ApiKey.created_at))
+        session.scalars(
+            select(ApiKey).where(
+                ApiKey.user_id == user.id,
+                ApiKey.revoked_at.is_(None),
+            ).order_by(ApiKey.created_at)
+        )
     )
 
 

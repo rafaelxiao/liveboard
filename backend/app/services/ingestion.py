@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -209,18 +209,40 @@ def ingest_fund_movements(session: Session, *, series_id: int, movements: list) 
             if not m.to_strategy:
                 raise IngestionError("to_strategy required when to_bucket is STRATEGY")
             to_strategy_id = get_or_create_strategy(session, series_id, m.to_strategy, strat_cache)
-        session.add(
-            FundMovement(
-                series_id=series_id,
-                ts=m.ts,
-                currency=m.currency.strip().upper(),
-                amount=m.amount,
-                from_bucket=str(m.from_bucket),
-                to_bucket=str(m.to_bucket),
-                from_strategy_id=from_strategy_id,
-                to_strategy_id=to_strategy_id,
+
+        # Upsert by client_movement_id
+        existing = session.scalar(
+            select(FundMovement).where(
+                FundMovement.series_id == series_id,
+                FundMovement.client_movement_id == m.client_movement_id,
+                FundMovement.voided_at.is_(None),
             )
         )
+        if existing is not None:
+            existing.ts = m.ts
+            existing.currency = m.currency.strip().upper()
+            existing.amount = m.amount
+            existing.from_bucket = str(m.from_bucket)
+            existing.to_bucket = str(m.to_bucket)
+            existing.from_strategy_id = from_strategy_id
+            existing.to_strategy_id = to_strategy_id
+            existing.updated_at = datetime.now(UTC)
+        else:
+            session.add(
+                FundMovement(
+                    series_id=series_id,
+                    client_movement_id=m.client_movement_id,
+                    ts=m.ts,
+                    currency=m.currency.strip().upper(),
+                    amount=m.amount,
+                    from_bucket=str(m.from_bucket),
+                    to_bucket=str(m.to_bucket),
+                    from_strategy_id=from_strategy_id,
+                    to_strategy_id=to_strategy_id,
+                    created_at=datetime.now(UTC),
+                    updated_at=datetime.now(UTC),
+                )
+            )
     session.flush()
     return len(movements)
 
@@ -375,3 +397,47 @@ def void_fills(
             n += 1
     session.flush()
     return n
+
+
+def void_fills_by_strategy(
+    session: Session,
+    *,
+    series_id: int,
+    strategy_name_key: str,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+) -> int:
+    """Void all non-voided fills for a given strategy within a series.
+
+    Useful for idempotent re-uploads: void the old run's fills by strategy,
+    then ingest the new run.
+    """
+    from app.models.fill import Fill
+    from app.models.strategy import Strategy
+
+    strat = session.scalar(
+        select(Strategy).where(
+            Strategy.series_id == series_id,
+            Strategy.name_key == strategy_name_key,
+        )
+    )
+    if strat is None:
+        return 0
+
+    q = (
+        update(Fill)
+        .where(
+            Fill.series_id == series_id,
+            Fill.strategy_id == strat.id,
+            Fill.voided_at.is_(None),
+        )
+    )
+    if date_from is not None:
+        q = q.where(Fill.ts >= date_from)
+    if date_to is not None:
+        q = q.where(Fill.ts <= date_to)
+
+    now = datetime.now(UTC)
+    result = session.execute(q.values(voided_at=now))
+    session.flush()
+    return result.rowcount or 0

@@ -41,7 +41,7 @@ const ConcentrationChart = React.memo(function ConcentrationChart({ gainCurve, l
         {t("What % of total gains/losses come from the top trades. Steep bars = concentrated risk.")}
       </p>
       <div className="h-48 w-full">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <BarChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
             <XAxis
               dataKey="label"

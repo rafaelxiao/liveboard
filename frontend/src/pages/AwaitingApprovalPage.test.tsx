@@ -38,7 +38,7 @@ describe("AwaitingApprovalPage", () => {
 
   it("Check status routes to /dashboard once the account is approved", async () => {
     server.use(
-      http.get("/api/auth/me", () =>
+      http.get("/liveboard/api/v1/auth/me", () =>
         HttpResponse.json({ id: 1, email: "p@x.c", role: "user", status: "approved", created_at: "x" }),
       ),
     );
@@ -49,7 +49,7 @@ describe("AwaitingApprovalPage", () => {
 
   it("Check status while still pending shows a gentle still-pending note", async () => {
     server.use(
-      http.get("/api/auth/me", () =>
+      http.get("/liveboard/api/v1/auth/me", () =>
         HttpResponse.json({ id: 1, email: "p@x.c", role: "user", status: "pending", created_at: "x" }),
       ),
     );

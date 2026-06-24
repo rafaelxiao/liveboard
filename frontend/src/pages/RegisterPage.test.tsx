@@ -29,7 +29,7 @@ async function fill(email: string, pw: string, confirm = pw) {
 describe("RegisterPage", () => {
   it("on 201 shows pending-approval confirmation and does NOT enter dashboard (I1)", async () => {
     server.use(
-      http.post("/api/auth/register", () =>
+      http.post("/liveboard/api/v1/auth/register", () =>
         HttpResponse.json({ id: 1, email: "n@x.c", role: "user", status: "pending", created_at: "x" }, { status: 201 }),
       ),
     );
@@ -42,7 +42,7 @@ describe("RegisterPage", () => {
 
   it("on 409 shows an email-already-registered inline error", async () => {
     server.use(
-      http.post("/api/auth/register", () =>
+      http.post("/liveboard/api/v1/auth/register", () =>
         HttpResponse.json({ error: { code: "conflict", message: "email exists" } }, { status: 409 }),
       ),
     );

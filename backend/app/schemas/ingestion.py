@@ -9,6 +9,7 @@ from app.models.enums import Bucket, PositionEffect, Side
 class FundMovementIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    client_movement_id: str
     ts: datetime
     currency: str
     from_bucket: Bucket

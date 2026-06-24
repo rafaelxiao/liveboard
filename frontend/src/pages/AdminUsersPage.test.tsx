@@ -20,7 +20,7 @@ function renderPage() {
 describe("AdminUsersPage (K2)", () => {
   it("lists pending users with approve/reject actions", async () => {
     server.use(
-      http.get("/api/admin/users", () =>
+      http.get("/liveboard/api/v1/admin/users", () =>
         HttpResponse.json([
           { id: 1, email: "a@firm.com", role: "user", status: "pending", created_at: "2026-06-18T00:00:00Z" },
         ]),
@@ -34,12 +34,12 @@ describe("AdminUsersPage (K2)", () => {
 
   it("approve mutation succeeds and invalidates the query", async () => {
     server.use(
-      http.get("/api/admin/users", () =>
+      http.get("/liveboard/api/v1/admin/users", () =>
         HttpResponse.json([
           { id: 1, email: "a@firm.com", role: "user", status: "pending", created_at: "2026-06-18T00:00:00Z" },
         ]),
       ),
-      http.post("/api/admin/users/1/approve", () =>
+      http.post("/liveboard/api/v1/admin/users/1/approve", () =>
         new HttpResponse(null, { status: 204 }),
       ),
     );

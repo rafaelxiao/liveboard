@@ -123,7 +123,7 @@ def _make_series(db_session, user_id, base_currency="USD", name="s", tz="America
     s = Series(
         user_id=user_id,
         name=name,
-        tag="real",
+        tag="live",
         notes=None,
         base_currency=base_currency,
         session_tz=tz,

@@ -40,7 +40,7 @@ def series(db_session, user):
     s = Series(
         user_id=user.id,
         name="t",
-        tag="real",
+        tag="live",
         notes=None,
         base_currency="USD",
         session_tz="America/New_York",

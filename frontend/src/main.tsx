@@ -4,6 +4,9 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 
+// AUTO: picks up Vite's base (production /liveboard/, dev /liveboard/dev/)
+const BASENAME = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 import App from "./App";
 import { AuthProvider } from "./auth/AuthContext";
 import { ToastProvider } from "./components/Toast";
@@ -20,7 +23,7 @@ createRoot(document.getElementById("root")!).render(
       Skip to content
     </a>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <BrowserRouter basename={BASENAME} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AuthProvider>
           <ToastProvider>
             <ErrorBoundary>

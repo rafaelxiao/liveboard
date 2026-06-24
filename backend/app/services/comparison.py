@@ -29,6 +29,10 @@ from app.schemas.comparison import (
     StrategyBlock,
     SymbolBlock,
     UnmatchedFill,
+    ExecutionComparisonBlock,
+    ExecutionDeltaGroup,
+    PnlBreakdownBlock,
+    PnlBreakdownRow,
 )
 from app.services.metrics import compute_metrics, drawdown_series, _load_fills, realized_equity_curve, indexed_curve
 from app.services.pairing import pair_fills
@@ -88,6 +92,7 @@ def _account_block(
     date_from: datetime | None,
     date_to: datetime | None,
     trade_view: str,
+    trade_grouping: str,
 ) -> AccountBlock:
     entries: list[AccountSeriesEntry] = []
     for s in series:
@@ -133,6 +138,7 @@ def _strategy_block(
     date_from: datetime | None,
     date_to: datetime | None,
     trade_view: str,
+    trade_grouping: str,
 ) -> dict[str, StrategyBlock]:
     keys_by_series = _strategy_keys_by_series(session, cohort)
     all_keys: dict[str, int] = {}
@@ -154,6 +160,7 @@ def _strategy_block(
                     date_from=date_from,
                     date_to=date_to,
                     trade_view=trade_view,
+                    trade_grouping=trade_grouping,
                 )
                 entries.append({"series_id": s.id, "metrics": env.metrics.model_dump()})
         block[name_key] = StrategyBlock(matched=matched, series=entries)
@@ -194,6 +201,7 @@ def _symbol_block(
     date_from: datetime | None,
     date_to: datetime | None,
     trade_view: str,
+    trade_grouping: str,
 ) -> dict[str, SymbolBlock]:
     block: dict[str, SymbolBlock] = {}
     for name_key in sorted(matched_keys):
@@ -222,6 +230,7 @@ def _symbol_block(
                         date_from=date_from,
                         date_to=date_to,
                         trade_view=trade_view,
+                        trade_grouping=trade_grouping,
                     )
                     entries.append({"series_id": s.id, "pnl_metrics": env.metrics.model_dump()})
             block[key] = SymbolBlock(series=entries)
@@ -459,6 +468,7 @@ def _strategy_entity_block(
     strategy_keys: list[tuple[int, str]],
     date_from: datetime | None,
     date_to: datetime | None,
+    trade_grouping: str = "day",
 ) -> tuple[AccountBlock, list[SeriesEquityCurve]]:
     """Compute account-level metrics + equity curves scoped to a specific (series_id, name_key) entity."""
     from app.services.metrics import compute_metrics
@@ -473,6 +483,7 @@ def _strategy_entity_block(
             strategy=name_key,
             date_from=date_from,
             date_to=date_to,
+            trade_grouping=trade_grouping,
         )
         entries.append(
             AccountSeriesEntry(
@@ -484,12 +495,398 @@ def _strategy_entity_block(
         equity_curves.append(
             SeriesEquityCurve(
                 series_id=series_id,
-                name=f"S{series_id}/{name_key}",
+                name=name_key,
                 equity_curve=[p.model_dump() for p in data.equity_curve],
                 drawdown_series=[p.model_dump() for p in data.drawdown_series],
             )
         )
     return AccountBlock(series=entries), equity_curves
+
+
+# ---------------------------------------------------------------------------
+# PnL breakdown: shared days vs different dates, per strategy per month
+# ---------------------------------------------------------------------------
+
+
+def _pnl_breakdown_aggregated(
+    session: Session,
+    cohort: list[Series],
+    matched_keys: set[str],
+    date_from: datetime | None,
+    date_to: datetime | None,
+) -> list[PnlBreakdownRow]:
+    """Aggregate all strategies together — one row per month."""
+    from collections import defaultdict
+
+    from app.models.strategy import Strategy
+    from app.models.instrument import Instrument
+    from app.services.metrics import trade_date
+
+    # Load all fills across all matched strategies
+    live_s = next((s for s in cohort if s.tag == "live"), cohort[0])
+    sim_s = next((s for s in cohort if s.tag == "sim"), cohort[1] if len(cohort) > 1 else cohort[0])
+
+    def load_fills(series):
+        all_f = []
+        for st in session.scalars(select(Strategy).where(Strategy.series_id == series.id)).all():
+            if st.name_key not in matched_keys:
+                continue
+            fills = session.scalars(
+                select(Fill).where(Fill.series_id == series.id, Fill.strategy_id == st.id, Fill.voided_at.is_(None))
+            ).all()
+            if date_from is not None or date_to is not None:
+                df = date_from.date() if isinstance(date_from, datetime) else date_from
+                dt = date_to.date() if isinstance(date_to, datetime) else date_to
+                fills = [f for f in fills if (df is None or trade_date(f.ts, series.session_tz) >= df) and (dt is None or trade_date(f.ts, series.session_tz) <= dt)]
+            all_f.extend(fills)
+        return all_f
+
+    l_fills = load_fills(live_s)
+    s_fills = load_fills(sim_s)
+
+    inst_l = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == live_s.id).all()}
+    inst_s2 = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == sim_s.id).all()}
+
+    live_days = {f.ts.date() for f in l_fills}
+    sim_days = {f.ts.date() for f in s_fills}
+    shared = live_days & sim_days
+    l_only = live_days - sim_days
+    s_only = sim_days - live_days
+
+    pnl_l = defaultdict(Decimal)
+    pnl_s = defaultdict(Decimal)
+    for rt in pair_fills(l_fills, inst_l):
+        pnl_l[(rt.close_ts.strftime("%Y-%m"), rt.close_ts.date())] += rt.net_pnl
+    for rt in pair_fills(s_fills, inst_s2):
+        pnl_s[(rt.close_ts.strftime("%Y-%m"), rt.close_ts.date())] += rt.net_pnl
+
+    monthly: dict[str, dict] = defaultdict(lambda: {"total_l": Decimal("0"), "total_s": Decimal("0"), "shared_l": Decimal("0"), "shared_s": Decimal("0"), "lo": Decimal("0"), "so": Decimal("0")})
+    for (m, d), v in pnl_l.items():
+        monthly[m]["total_l"] += v
+        if d in shared: monthly[m]["shared_l"] += v
+        elif d in l_only: monthly[m]["lo"] += v
+    for (m, d), v in pnl_s.items():
+        monthly[m]["total_s"] += v
+        if d in shared: monthly[m]["shared_s"] += v
+        elif d in s_only: monthly[m]["so"] += v
+
+    rows = []
+    for m in sorted(monthly.keys()):
+        d = monthly[m]
+        rows.append(PnlBreakdownRow(
+            month=m, name_key="",
+            live_pnl=str(d["total_l"].quantize(Decimal("0.01"))),
+            sim_pnl=str(d["total_s"].quantize(Decimal("0.01"))),
+            total_delta=str((d["total_l"] - d["total_s"]).quantize(Decimal("0.01"))),
+            shared_delta=str((d["shared_l"] - d["shared_s"]).quantize(Decimal("0.01"))),
+            date_delta=str((d["lo"] - d["so"]).quantize(Decimal("0.01"))),
+        ))
+    return rows
+
+
+def _pnl_breakdown(
+    session: Session,
+    cohort: list[Series],
+    baseline: Series,
+    matched_keys: set[str],
+    date_from: datetime | None,
+    date_to: datetime | None,
+    group_by_strategy: bool = True,
+) -> PnlBreakdownBlock:
+    """Break down the PnL difference per strategy/month into shared-day and date-delta."""
+    from collections import defaultdict
+
+    from app.models.strategy import Strategy
+    from app.services.metrics import trade_date, filter_round_trips
+
+    strat_map: dict[int, str] = {}
+    for s in cohort:
+        for st in session.scalars(select(Strategy).where(Strategy.series_id == s.id)).all():
+            strat_map[st.id] = st.name_key
+
+    rows: list[PnlBreakdownRow] = []
+
+    if not group_by_strategy:
+        # Aggregate all strategies together
+        rows = _pnl_breakdown_aggregated(
+            session, cohort, matched_keys, date_from, date_to
+        )
+        return PnlBreakdownBlock(rows=rows)
+
+    for nk in sorted(matched_keys):
+        # Load fills for this strategy in both series
+        fills_by_series: dict[int, list[Fill]] = {}
+        days_by_series: dict[int, set] = {}
+        for s in cohort:
+            sid = None
+            for st in session.scalars(select(Strategy).where(Strategy.series_id == s.id, Strategy.name_key == nk)).all():
+                sid = st.id
+                break
+            if sid is None:
+                continue
+            fills = session.scalars(
+                select(Fill).where(Fill.series_id == s.id, Fill.strategy_id == sid, Fill.voided_at.is_(None))
+            ).all()
+            if date_from is not None or date_to is not None:
+                df = date_from.date() if isinstance(date_from, datetime) else date_from
+                dt = date_to.date() if isinstance(date_to, datetime) else date_to
+                fills = [f for f in fills if (df is None or trade_date(f.ts, s.session_tz) >= df) and (dt is None or trade_date(f.ts, s.session_tz) <= dt)]
+            fills_by_series[s.id] = fills
+            days_by_series[s.id] = {f.ts.date() for f in fills}
+
+        if len(fills_by_series) < 2:
+            continue
+
+        # Always use live as reference, sim as comparison
+        live_s = next((s for s in cohort if s.tag == "live"), cohort[0])
+        sim_s = next((s for s in cohort if s.tag == "sim"), cohort[1] if len(cohort) > 1 else cohort[0])
+        if live_s.id == sim_s.id:
+            continue
+        l_fills = fills_by_series.get(live_s.id, [])
+        s_fills = fills_by_series.get(sim_s.id, [])
+        if not l_fills or not s_fills:
+            continue
+
+        # Pair and get daily PnL
+        from app.models.instrument import Instrument
+
+        inst_l = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == live_s.id).all()}
+        inst_s2 = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == sim_s.id).all()}
+
+        pnl_l = defaultdict(Decimal)
+        pnl_s2 = defaultdict(Decimal)
+        for rt in pair_fills(l_fills, inst_l):
+            pnl_l[(rt.close_ts.strftime("%Y-%m"), rt.close_ts.date())] += rt.net_pnl
+        for rt in pair_fills(s_fills, inst_s2):
+            pnl_s2[(rt.close_ts.strftime("%Y-%m"), rt.close_ts.date())] += rt.net_pnl
+
+        shared_days = days_by_series[live_s.id] & days_by_series[sim_s.id]
+        l_only = days_by_series[live_s.id] - days_by_series[sim_s.id]
+        s_only = days_by_series[sim_s.id] - days_by_series[live_s.id]
+
+        # Aggregate by month
+        monthly: dict[str, dict] = defaultdict(lambda: {"total_l": Decimal("0"), "total_s": Decimal("0"), "shared_l": Decimal("0"), "shared_s": Decimal("0"), "lo": Decimal("0"), "so": Decimal("0")})
+        for (m, d), v in pnl_l.items():
+            monthly[m]["total_l"] += v
+            if d in shared_days:
+                monthly[m]["shared_l"] += v
+            elif d in l_only:
+                monthly[m]["lo"] += v
+        for (m, d), v in pnl_s2.items():
+            monthly[m]["total_s"] += v
+            if d in shared_days:
+                monthly[m]["shared_s"] += v
+            elif d in s_only:
+                monthly[m]["so"] += v
+
+        for m in sorted(monthly.keys()):
+            d = monthly[m]
+            rows.append(PnlBreakdownRow(
+                month=m,
+                name_key=nk,
+                live_pnl=str(d["total_l"].quantize(Decimal("0.01"))),
+                sim_pnl=str(d["total_s"].quantize(Decimal("0.01"))),
+                total_delta=str((d["total_l"] - d["total_s"]).quantize(Decimal("0.01"))),
+                shared_delta=str((d["shared_l"] - d["shared_s"]).quantize(Decimal("0.01"))),
+                date_delta=str((d["lo"] - d["so"]).quantize(Decimal("0.01"))),
+            ))
+
+    return PnlBreakdownBlock(rows=rows)
+
+
+# ---------------------------------------------------------------------------
+# Execution quality comparison (VWAP delta per strategy/symbol)
+# ---------------------------------------------------------------------------
+
+
+def _execution_comparison(
+    session: Session,
+    cohort: list[Series],
+    baseline: Series,
+    matched_keys: set[str],
+    date_from: datetime | None,
+    date_to: datetime | None,
+    aggregate: bool = False,
+) -> ExecutionComparisonBlock:
+    """Compare per-trade spread (sell price - buy price) / buy price between series.
+
+    Symbol-independent: uses round-trip returns, not absolute VWAP.
+    """
+    from collections import defaultdict
+
+    from app.models.strategy import Strategy
+    from app.models.instrument import Instrument
+    from app.services.metrics import trade_date
+
+    # Load strategy name_keys
+    strat_map: dict[int, str] = {}
+    for s in cohort:
+        for st in session.scalars(select(Strategy).where(Strategy.series_id == s.id)).all():
+            strat_map[st.id] = st.name_key
+
+    # Load instruments for each series
+    instruments_by_series: dict[int, dict[str, Instrument]] = {}
+    for s in cohort:
+        instruments_by_series[s.id] = {
+            i.symbol: i
+            for i in session.scalars(select(Instrument).where(Instrument.series_id == s.id)).all()
+        }
+
+    groups_out: list[ExecutionDeltaGroup] = []
+
+    for nk in sorted(matched_keys):
+        # Load fills for this strategy in both series
+        rt_by_series: dict[int, list] = {}
+        for s in cohort:
+            sid = None
+            for st in session.scalars(select(Strategy).where(Strategy.series_id == s.id, Strategy.name_key == nk)).all():
+                sid = st.id
+                break
+            if sid is None:
+                continue
+            fills = session.scalars(
+                select(Fill).where(Fill.series_id == s.id, Fill.strategy_id == sid, Fill.voided_at.is_(None))
+            ).all()
+            if date_from is not None or date_to is not None:
+                df = date_from.date() if isinstance(date_from, datetime) else date_from
+                dt = date_to.date() if isinstance(date_to, datetime) else date_to
+                fills = [f for f in fills if (df is None or trade_date(f.ts, s.session_tz) >= df) and (dt is None or trade_date(f.ts, s.session_tz) <= dt)]
+            if not fills:
+                continue
+            rts = pair_fills(fills, instruments_by_series[s.id])
+            # Filter to only complete round-trips (not open positions)
+            rt_by_series[s.id] = rts
+
+        if len(rt_by_series) < 2:
+            continue
+
+        # Compute per-trade spread for each series
+        # spread = (sell_price - buy_price) / buy_price → gross_pnl / (entry_price * qty * mult)
+        spreads: dict[int, list[Decimal]] = {}
+        notional_by_series: dict[int, Decimal] = {}
+        for s_id, rts in rt_by_series.items():
+            s_spreads = []
+            total_notional = Decimal("0")
+            sym_spreads: dict[str, list[Decimal]] = defaultdict(list)
+            sym_notional: dict[str, Decimal] = defaultdict(Decimal)
+            for rt in rts:
+                entry_notional = rt.entry_price * rt.qty * rt.multiplier
+                if entry_notional == 0:
+                    continue
+                spread = rt.gross_pnl / entry_notional
+                s_spreads.append(spread)
+                total_notional += entry_notional
+                sym_spreads[rt.symbol].append(spread)
+                sym_notional[rt.symbol] += entry_notional
+            spreads[s_id] = s_spreads
+            notional_by_series[s_id] = total_notional
+            # Also store per-symbol for non-aggregated mode
+            if not aggregate:
+                if not hasattr(rt_by_series, '_sym'):
+                    # hack: store on the dict
+                    pass
+
+        other_s_id = next(s.id for s in cohort if s.id != baseline.id)
+        if not spreads[baseline.id] or not spreads.get(other_s_id, []):
+            continue
+
+        other_s = next(s for s in cohort if s.id != baseline.id)
+
+        if aggregate:
+            # One row per strategy
+            avg_b = sum(spreads[baseline.id], Decimal("0")) / len(spreads[baseline.id])
+            avg_o = sum(spreads[other_s.id], Decimal("0")) / len(spreads[other_s.id])
+            diff_bps = (avg_b - avg_o) * Decimal("10000")
+            min_total_notional = min(notional_by_series[baseline.id], notional_by_series[other_s.id])
+            impact = diff_bps * min_total_notional / Decimal("10000")
+            groups_out.append(ExecutionDeltaGroup(
+                name_key=nk, symbol="",
+                baseline_series_id=baseline.id, other_series_id=other_s.id,
+                daily_groups=len(spreads[baseline.id]),
+                weighted_avg_bps=str(diff_bps.quantize(Decimal("0.1"))),
+                estimated_pnl_impact=str(impact.quantize(Decimal("0.01"))),
+                total_notional=str(notional_by_series[baseline.id].quantize(Decimal("0"))),
+            ))
+        else:
+            # Per-symbol rows
+            # Recompute with per-symbol grouping
+            sym_pairs = set()
+            for s_id, rts in rt_by_series.items():
+                for rt in rts:
+                    sym_pairs.add((nk, rt.symbol))
+            
+            for nk2, sym in sorted(sym_pairs):
+                # Get per-symbol spreads
+                b_sym_spreads = []
+                o_sym_spreads = []
+                b_sym_notional = Decimal("0")
+                o_sym_notional = Decimal("0")
+                
+                for rt in rt_by_series[baseline.id]:
+                    if rt.symbol == sym:
+                        en = rt.entry_price * rt.qty * rt.multiplier
+                        if en:
+                            b_sym_spreads.append(rt.gross_pnl / en)
+                            b_sym_notional += en
+                
+                for rt in rt_by_series[other_s.id]:
+                    if rt.symbol == sym:
+                        en = rt.entry_price * rt.qty * rt.multiplier
+                        if en:
+                            o_sym_spreads.append(rt.gross_pnl / en)
+                            o_sym_notional += en
+                
+                if not b_sym_spreads or not o_sym_spreads:
+                    continue
+                
+                avg_b = sum(b_sym_spreads, Decimal("0")) / len(b_sym_spreads)
+                avg_o = sum(o_sym_spreads, Decimal("0")) / len(o_sym_spreads)
+                diff_bps = (avg_b - avg_o) * Decimal("10000")
+                min_notional = min(b_sym_notional, o_sym_notional)
+                impact = diff_bps * min_notional / Decimal("10000")
+                
+                groups_out.append(ExecutionDeltaGroup(
+                    name_key=nk2, symbol=sym,
+                    baseline_series_id=baseline.id, other_series_id=other_s.id,
+                    daily_groups=len(b_sym_spreads),
+                    weighted_avg_bps=str(diff_bps.quantize(Decimal("0.1"))),
+                    estimated_pnl_impact=str(impact.quantize(Decimal("0.01"))),
+                    total_notional=str(b_sym_notional.quantize(Decimal("0"))),
+                ))
+
+    # Aggregate per strategy (merge symbols) if aggregate=True
+    if aggregate and groups_out:
+        from collections import defaultdict
+        agg: dict[str, dict] = defaultdict(lambda: {"total_notional": Decimal("0"), "total_impact": Decimal("0"), "daily_groups": 0, "weighted_sum": Decimal("0")})
+        for g in groups_out:
+            if g.weighted_avg_bps == "—":
+                continue
+            key = g.name_key
+            n = Decimal(g.total_notional)
+            agg[key]["total_notional"] += n
+            agg[key]["total_impact"] += Decimal(g.estimated_pnl_impact)
+            agg[key]["daily_groups"] += g.daily_groups
+            agg[key]["weighted_sum"] += Decimal(g.weighted_avg_bps) * n
+
+        groups_out = []
+        for nk in sorted(agg.keys()):
+            a = agg[nk]
+            if a["total_notional"]:
+                wavg = a["weighted_sum"] / a["total_notional"]
+            else:
+                wavg = Decimal("0")
+            groups_out.append(ExecutionDeltaGroup(
+                name_key=nk,
+                symbol="",
+                baseline_series_id=baseline.id,
+                other_series_id=next(s.id for s in cohort if s.id != baseline.id),
+                daily_groups=a["daily_groups"],
+                weighted_avg_bps=str(wavg.quantize(Decimal("0.1"))),
+                estimated_pnl_impact=str(a["total_impact"].quantize(Decimal("0.01"))),
+                total_notional=str(a["total_notional"].quantize(Decimal("0"))),
+            ))
+
+    return ExecutionComparisonBlock(groups=groups_out)
 
 
 # ---------------------------------------------------------------------------
@@ -509,6 +906,7 @@ def compare(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     trade_view: str = "lot",
+    trade_grouping: str = "day",
     per_trade_page: int = 1,
     per_trade_page_size: int = 500,
 ) -> ComparisonOut:
@@ -524,7 +922,16 @@ def compare(
     if level == "strategy" and strategy_keys:
         # Strategy-level comparison: entity-keyed results
         st_keys = [(sk["series_id"], sk["name_key"]) for sk in strategy_keys]
-        account_block, equity_curves = _strategy_entity_block(session, st_keys, date_from, date_to)
+        account_block, equity_curves = _strategy_entity_block(session, st_keys, date_from, date_to, trade_grouping)
+
+        # Execution comparison for strategy level
+        strat_matched_keys = {sk["name_key"] for sk in strategy_keys}
+        execution_block = _execution_comparison(
+            session, series, baseline, strat_matched_keys, date_from, date_to
+        )
+        pnl_breakdown_block = _pnl_breakdown(
+            session, series, baseline, strat_matched_keys, date_from, date_to
+        )
 
         return ComparisonOut(
             meta=ComparisonMeta(
@@ -538,41 +945,27 @@ def compare(
             symbol={},
             per_trade=PerTradeBlock(page=1, page_size=500, total=0, rows=[], unmatched={}),
             equity_curves=equity_curves,
+            execution=execution_block,
+            pnl_breakdown=pnl_breakdown_block,
         )
 
     # 4. Account block (all series, including mismatched)
-    account = _account_block(session, series, date_from, date_to, trade_view)
+    account = _account_block(session, series, date_from, date_to, trade_view, trade_grouping)
 
-    # 5. Strategy block (diff cohort only)
-    strategy = _strategy_block(session, diff_cohort, date_from, date_to, trade_view)
+    # 5. Compute matched strategy keys (lightweight — no metrics)
+    keys_by_series = _strategy_keys_by_series(session, diff_cohort)
+    if len(diff_cohort) >= 2:
+        all_keys_sets = list(keys_by_series.values())
+        matched_keys = all_keys_sets[0].copy()
+        for ks in all_keys_sets[1:]:
+            matched_keys &= ks
+    else:
+        matched_keys = set()
 
-    # 6. Symbol block (matched strategies only)
-    matched_keys = {nk for nk, sb in strategy.items() if sb.matched}
-    symbol = _symbol_block(session, diff_cohort, matched_keys, date_from, date_to, trade_view)
-
-    # 7. Per-trade matcher
-    from app.core.config import settings
-
-    tolerance = settings.PER_TRADE_MATCH_TOLERANCE
-    baseline_idx = next(i for i, s in enumerate(diff_cohort) if s.id == baseline.id)
-
-    aligned_groups, _ = _collect_fills(
-        session, diff_cohort, matched_keys, date_from, date_to, baseline.session_tz
-    )
-    matched_rows, unmatched_raw = _match_fills(aligned_groups, baseline_idx, tolerance)
-    page_rows, total = _paginate(matched_rows, per_trade_page, per_trade_page_size)
-
-    per_trade_unmatched: dict[str, list[UnmatchedFill]] = {}
-    for sid, fills in unmatched_raw.items():
-        per_trade_unmatched[sid] = [
-            UnmatchedFill(
-                client_fill_id=f["client_fill_id"],
-                symbol=f["symbol"],
-                side=f["side"],
-                ts=f["ts"],
-            )
-            for f in fills
-        ]
+    # 6-7. Strategy, symbol, and per-trade blocks — only computed on demand
+    strategy: dict[str, StrategyBlock] = {}
+    symbol: dict[str, SymbolBlock] = {}
+    per_trade = PerTradeBlock(page=1, page_size=500, total=0, rows=[], unmatched={})
 
     # 8. Equity curves (per series)
     equity_curves = []
@@ -604,6 +997,18 @@ def compare(
             drawdown_series=[{"ts": ts.isoformat(), "drawdown": str(d), "drawdown_pct": str(p)} for ts, d, p in dd],
         ))
 
+    # 9. PnL breakdown by shared vs different dates (account-level: all strategies aggregated)
+    pnl_breakdown_block = _pnl_breakdown(
+        session, diff_cohort, baseline, matched_keys, date_from, date_to,
+        group_by_strategy=False,
+    )
+
+    # 10. Execution quality comparison (VWAP deltas)
+    execution_block = _execution_comparison(
+        session, diff_cohort, baseline, matched_keys, date_from, date_to,
+        aggregate=True,  # merge symbols, show per-strategy rows
+    )
+
     return ComparisonOut(
         meta=ComparisonMeta(
             base_currency=baseline.base_currency,
@@ -617,12 +1022,8 @@ def compare(
         account=account,
         strategy=strategy,
         symbol=symbol,
-        per_trade=PerTradeBlock(
-            page=per_trade_page,
-            page_size=per_trade_page_size,
-            total=total,
-            rows=page_rows,
-            unmatched=per_trade_unmatched,
-        ),
+        per_trade=per_trade,
         equity_curves=equity_curves,
+        execution=execution_block,
+        pnl_breakdown=pnl_breakdown_block,
     )

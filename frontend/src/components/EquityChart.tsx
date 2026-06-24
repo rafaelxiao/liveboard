@@ -1,111 +1,199 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Legend } from "recharts";
 import type { EquityPoint } from "../lib/types";
 import { formatCurrency } from "../lib/format";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
+
+export interface EquityCurveSeries {
+  name: string;
+  points: EquityPoint[];
+  color?: string;
+}
 
 interface EquityChartProps {
-  points: EquityPoint[];
+  /** Single series (dashboard/share) or multiple series (compare) */
+  series: EquityCurveSeries[];
   baseCurrency: string;
   mode: "absolute" | "indexed";
   onModeChange: (mode: "absolute" | "indexed") => void;
+  hideModeToggle?: boolean;
+  height?: number;
 }
 
-const EquityChart = React.memo(function EquityChart({ points, baseCurrency, mode, onModeChange }: EquityChartProps) {
-  const { t } = useTranslation("dashboard");
-  const activeKey = mode === "absolute" ? "realized_pnl" : "indexed_return";
-  const formatValue = (v: number) => mode === "absolute" ? formatCurrency(String(v), baseCurrency) : (v * 100).toFixed(2) + "%";
+/** Group points by calendar date, keeping the last value of each day */
+function groupByDate(points: EquityPoint[]): EquityPoint[] {
+  if (points.length === 0) return [];
+  const byDate = new Map<string, EquityPoint>();
+  for (const p of points) {
+    const d = p.ts.slice(0, 10); // "2025-11-19"
+    byDate.set(d, p);
+  }
+  return Array.from(byDate.values()).sort((a, b) => a.ts.localeCompare(b.ts));
+}
 
-  const data = points.map((p) => ({
-    ts: p.ts,
-    value: Number(p[activeKey]),
-  }));
+const SERIES_COLORS = [
+  "rgb(var(--accent-primary))",
+  "#a78bfa",
+  "#34d399",
+  "#fbbf24",
+  "#f472b6",
+];
+
+const EquityChart = React.memo(function EquityChart({
+  series,
+  baseCurrency,
+  mode,
+  onModeChange,
+  hideModeToggle,
+  height = 300,
+}: EquityChartProps) {
+  const { t } = useTranslation("dashboard");
+
+  const chartData = useMemo(() => {
+    if (series.length === 0) return [];
+
+    // Collect union of all dates
+    const dateSet = new Set<string>();
+    series.forEach((s) =>
+      groupByDate(s.points).forEach((p) => {
+        dateSet.add(p.ts.slice(0, 10));
+      })
+    );
+    const allDates = Array.from(dateSet).sort();
+
+    // Build chart rows — one per date
+    const lastVals: (number | null)[] = new Array(series.length).fill(null);
+
+    return allDates.map((date) => {
+      const point: Record<string, unknown> = { ts: date };
+      series.forEach((s, i) => {
+        const dayPoints = s.points.filter((p) => p.ts.slice(0, 10) === date);
+        if (dayPoints.length > 0) {
+          const last = dayPoints[dayPoints.length - 1];
+          const val =
+            mode === "indexed"
+              ? parseFloat(last.indexed_return) * 100
+              : parseFloat(last.realized_pnl);
+          lastVals[i] = val;
+        }
+        if (lastVals[i] !== null) {
+          point[`v${i}`] = lastVals[i];
+        }
+      });
+      return point;
+    });
+  }, [series, mode]);
+
+  const yFormatter = (v: number) => {
+    if (mode === "indexed") return `${v.toFixed(1)}%`;
+    const abs = Math.abs(v);
+    if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+    if (abs >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
+    return `$${v.toFixed(0)}`;
+  };
+
+  const xFormatter = (ts: string) => {
+    const d = new Date(ts + "T00:00:00");
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
 
   return (
     <div className="rounded-lg border border-border-default bg-surface p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-primary">{t("Equity Curve")}</h3>
-        <div className="inline-flex rounded-md border border-border-default">
-          <button
-            type="button"
-            onClick={() => onModeChange("absolute")}
-            className={`px-2 py-1 text-xs rounded-l-md ${mode === "absolute" ? "bg-accent text-white" : "bg-surface text-secondary"}`}
-          >
-            {t("Absolute")}
-          </button>
-          <button
-            type="button"
-            onClick={() => onModeChange("indexed")}
-            className={`px-2 py-1 text-xs rounded-r-md ${mode === "indexed" ? "bg-accent text-white" : "bg-surface text-secondary"}`}
-          >
-            {t("Indexed")}
-          </button>
-        </div>
+        <h3 className="text-sm font-semibold text-primary">
+          {t("Equity Curve")}
+          <span className="ml-2 text-[10px] font-normal text-muted">
+            {chartData.length} daily points
+          </span>
+        </h3>
+        {!hideModeToggle && (
+          <div className="inline-flex rounded-md border border-border-default">
+            <button
+              type="button"
+              onClick={() => onModeChange("absolute")}
+              className={`px-2 py-1 text-xs rounded-l-md ${mode === "absolute" ? "bg-accent text-white" : "bg-surface text-secondary"}`}
+            >
+              {t("Absolute")}
+            </button>
+            <button
+              type="button"
+              onClick={() => onModeChange("indexed")}
+              className={`px-2 py-1 text-xs rounded-r-md ${mode === "indexed" ? "bg-accent text-white" : "bg-surface text-secondary"}`}
+            >
+              {t("Indexed")}
+            </button>
+          </div>
+        )}
       </div>
-      <div className="h-72 w-full" style={{ minHeight: "288px" }}>
-        <ResponsiveContainer width="99%" height="99%">
-          <LineChart data={data} margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#333" strokeOpacity={0.3} />
-            <ReferenceLine y={0} stroke="#666" strokeOpacity={0.5} />
-            <XAxis
-              dataKey="ts"
-              tickFormatter={(ts: string) => {
-                const d = new Date(ts);
-                return `${d.getMonth() + 1}/${d.getDate()}`;
-              }}
-              tick={{ fontSize: 10, fill: "#888" }}
-              axisLine={false}
-              tickLine={false}
-              interval="preserveStartEnd"
-            />
-            <YAxis
-              tickFormatter={(v: number) => formatValue(v)}
-              tick={{ fontSize: 10, fill: "#888" }}
-              axisLine={false}
-              tickLine={false}
-              width={60}
-            />
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (!active || !payload || payload.length === 0 || !payload[0]) return null;
-                const val = Number(payload[0].value);
-                return (
-                  <div
-                    style={{
-                      backgroundColor: "rgb(var(--bg-surface-3))",
-                      color: "rgb(var(--text-primary))",
-                      border: "1px solid rgb(var(--border-default))",
-                      borderRadius: "6px",
-                      padding: "4px 8px",
-                      fontSize: "12px",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-                    }}
-                  >
-                    <div style={{ color: "rgb(var(--text-muted))", marginBottom: 2, fontSize: "10px" }}>
-                      {new Date(String(label ?? "")).toLocaleString()}
-                    </div>
-                    <div className="font-mono" style={{ color: "rgb(var(--text-primary))" }}>
-                      {formatValue(val)}
-                    </div>
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={chartData}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
+          <XAxis
+            dataKey="ts"
+            tickFormatter={xFormatter}
+            tick={{ fontSize: 10 }}
+            interval="preserveStartEnd"
+          />
+          <YAxis tickFormatter={yFormatter} tick={{ fontSize: 10 }} width={60} />
+          <Tooltip
+            content={({ active, payload, label }) => {
+              if (!active || !payload || payload.length === 0) return null;
+              return (
+                <div
+                  style={{
+                    background: "rgb(var(--bg-surface-3))",
+                    color: "rgb(var(--text-primary))",
+                    border: "1px solid rgb(var(--border-default))",
+                    borderRadius: "6px",
+                    padding: "6px 10px",
+                    fontSize: "12px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  <div style={{ color: "rgb(var(--text-muted))", marginBottom: 4, fontSize: "10px" }}>
+                    {label}
                   </div>
-                );
-              }}
+                  {payload.map((entry, i) => (
+                    <div key={i} className="flex items-center gap-2 font-mono">
+                      <span
+                        className="inline-block w-2 h-2 rounded-full"
+                        style={{ backgroundColor: entry.color }}
+                      />
+                      <span style={{ color: "rgb(var(--text-secondary))" }}>
+                        {series[i]?.name}:
+                      </span>
+                      <span style={{ color: "rgb(var(--text-primary))" }}>
+                        {mode === "indexed"
+                          ? `${Number(entry.value).toFixed(2)}%`
+                          : formatCurrency(String(entry.value), baseCurrency)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            }}
+          />
+          <ReferenceLine y={0} stroke="var(--border-default)" />
+          {series.length > 1 && (
+            <Legend
+              wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
+              iconType="line"
             />
+          )}
+          {series.map((s, i) => (
             <Line
+              key={i}
               type="monotone"
-              dataKey="value"
-              stroke="rgb(var(--accent-primary))"
-              strokeWidth={2}
+              dataKey={`v${i}`}
+              name={s.name}
+              stroke={s.color || SERIES_COLORS[i % SERIES_COLORS.length]}
               dot={false}
-              activeDot={{ r: 4, fill: "rgb(var(--accent-primary))" }}
+              strokeWidth={2}
               isAnimationActive={false}
             />
-          </LineChart>
-        </ResponsiveContainer>
-        <p className="mt-1 text-center text-[10px] text-muted">
-          {mode === "absolute" ? `${t("Cumulative PnL")} (${baseCurrency})` : t("Cumulative Return")} · {data.length} {t("points")}
-        </p>
-      </div>
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 });

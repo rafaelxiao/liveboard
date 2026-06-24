@@ -20,7 +20,14 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="LiveBoard API", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="LiveBoard API",
+        version="0.1.0",
+        lifespan=lifespan,
+        openapi_url="/v1/openapi.json",
+        docs_url="/v1/docs",
+        redoc_url="/v1/redoc",
+    )
 
     app.add_middleware(
         CORSMiddleware,
@@ -32,6 +39,10 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(api_router)
+
+    # Public share link view — no auth required
+    from app.routers.share_links import public_router
+    app.include_router(public_router, prefix="/v1/public")
 
     return app
 

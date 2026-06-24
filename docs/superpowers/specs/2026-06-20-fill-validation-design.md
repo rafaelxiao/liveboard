@@ -21,7 +21,7 @@ We need a **pre-ingestion validation layer** that catches obviously-wrong data b
 ## Architecture
 
 ```
-POST /series/{id}/fills:batch
+POST /v1/series/{id}/fills:batch
         │
         ▼
 ┌───────────────────────────┐
@@ -41,7 +41,7 @@ POST /series/{id}/fills:batch
 └───────────────────────────┘
 ```
 
-- **Stateless**: validation takes fills + series_id, returns pass/fail
+- **Stateful across calls**: validation loads existing fills from the DB up to the batch's earliest timestamp and seeds the running net-notional counter, so leverage tracks net position correctly across multiple POST requests
 - **Same transaction**: runs in the same DB session as ingestion
 - **Capital source**: `capital.account_base()` (already optimized, single query)
 
@@ -58,9 +58,10 @@ if capital_base == 0:
 Config: `require_capital: bool = True`
 
 ### Rule 2: Strategy Leverage
-Simulate cumulative position per strategy after each fill:
+Simulate cumulative **net** position per strategy after each fill (buy adds, sell subtracts):
 ```
-strategy_leverage = cumulative_notional / capital_base
+strategy_notional = Σ(signed_notional_per_fill)   # buy = +, sell = −
+strategy_leverage = |strategy_notional| / capital_base
 if strategy_leverage > max_leverage_ratio:
     REJECT "Strategy {strategy} exceeds leverage limit ({actual}x > {limit}x)"
 ```
@@ -94,7 +95,7 @@ DEFAULT_VALIDATION_CONFIG = {
 
 ### API to update config
 ```python
-# PATCH /series/{id}/validation-config
+# PATCH /v1/series/{id}/validation-config
 # Body: { "max_leverage_ratio": "3.0" }
 ```
 
@@ -135,14 +136,14 @@ DEFAULT_VALIDATION_CONFIG = {
 | `backend/app/routers/ingestion.py` | Call validation before ingestion |
 | `backend/app/schemas/ingestion.py` | Add `ValidationError` schema |
 | `backend/app/schemas/series.py` | Add `ValidationConfig` schema |
-| `backend/app/routers/series.py` | Add `PATCH /series/{id}/validation-config` |
+| `backend/app/routers/series.py` | Add `PATCH /v1/series/{id}/validation-config` |
 | `backend/tests/unit/test_validation.py` | **NEW** — validation tests |
 
 ## Key Design Properties
 
 1. **No false positives**: Default thresholds are generous (500% leverage). Users should only see rejections for genuinely suspicious data.
 2. **Capital base is net EXTERNAL**: Only deposits/withdrawals count, not internal transfers. Consistent with metrics calculation.
-3. **Simulation isolates from DB state**: Validation simulates positions in memory. If it passes, actual ingestion proceeds. No partial state.
+3. **Simulation seeds from DB state**: Validation loads existing fills up to the batch's earliest timestamp and seeds the running net-notional counter. This ensures leverage tracking is correct across multiple API calls. If it passes, actual ingestion proceeds.
 4. **Instrument multipliers are respected**: `cumulative_notional = sum(qty × price × multiplier)` per strategy, using the registered instrument multiplier.
 5. **Backward compatible**: Old fills without validation pass through. New fills get validation. Voided fills are already excluded from capital calculation.
 

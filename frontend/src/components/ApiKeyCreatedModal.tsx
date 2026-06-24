@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Eye, EyeOff } from "lucide-react";
 
 import CopyButton from "./CopyButton";
 import type { ApiKeyCreatedOut } from "../lib/types";
@@ -15,31 +15,22 @@ export default function ApiKeyCreatedModal({
 }) {
   const { t } = useTranslation("settings");
   const [copied, setCopied] = useState(false);
-  const [guarding, setGuarding] = useState(false);
-  const fieldRef = useRef<HTMLInputElement>(null);
+  const [visible, setVisible] = useState(false);
   const open = createdKey !== null;
 
   useEffect(() => {
     if (open) {
       setCopied(false);
-      setGuarding(false);
-      // focus + pre-select the key for easy manual copy
-      requestAnimationFrame(() => fieldRef.current?.select());
+      setVisible(false);
     }
   }, [open, createdKey]);
 
-  const requestClose = () => {
-    if (copied) {
-      onClose();
-    } else {
-      setGuarding(true);
-    }
-  };
-
   if (!createdKey) return null;
 
+  const masked = createdKey.key.slice(0, 8) + "•".repeat(Math.max(createdKey.key.length - 8, 24));
+
   return (
-    <Dialog.Root open={open} onOpenChange={(next) => { if (!next) requestClose(); }}>
+    <Dialog.Root open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/70" />
         <Dialog.Content
@@ -55,12 +46,19 @@ export default function ApiKeyCreatedModal({
 
           <div className="mt-4 flex items-center gap-2">
             <input
-              ref={fieldRef}
               readOnly
-              value={createdKey.key}
+              value={visible ? createdKey.key : masked}
               aria-label="API key"
               className="flex-1 rounded-sm border border-border-default bg-surface px-2 py-2 font-mono text-sm text-secondary"
             />
+            <button
+              type="button"
+              onClick={() => setVisible((v) => !v)}
+              className="rounded-md p-2 text-secondary hover:bg-surface-3"
+              title={visible ? t("hideKey") : t("showKey")}
+            >
+              {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
             <span onClick={() => setCopied(true)}>
               <CopyButton value={createdKey.key} label={t("copy")} copiedLabel={t("copied")} />
             </span>
@@ -68,26 +66,10 @@ export default function ApiKeyCreatedModal({
 
           <p className="mt-3 text-xs text-warning">⚠ {t("onlyTimeShown")}</p>
 
-          {guarding ? (
-            <div className="mt-5 rounded-md border border-warning bg-surface px-3 py-2 text-sm text-warning">
-              {t("closeGuardTitle")}
-              <div className="mt-2 flex justify-end gap-2">
-                <button type="button" onClick={() => setGuarding(false)}
-                  className="rounded-md px-2 py-1 text-secondary hover:bg-surface-3">
-                  {t("keepOpen")}
-                </button>
-                <button type="button" onClick={onClose}
-                  className="rounded-md bg-danger-ui px-2 py-1 text-white hover:opacity-90">
-                  {t("closeAnyway")}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button type="button" onClick={requestClose}
-              className="mt-5 w-full rounded-md bg-accent px-4 py-2 font-medium text-white hover:bg-accent-hover">
-              {t("copiedDone")}
-            </button>
-          )}
+          <button type="button" onClick={onClose}
+            className="mt-5 w-full rounded-md bg-accent px-4 py-2 font-medium text-white hover:bg-accent-hover">
+            {copied ? t("copiedDone") : t("done")}
+          </button>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

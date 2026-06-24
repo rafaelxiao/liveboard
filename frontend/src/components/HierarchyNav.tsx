@@ -3,120 +3,96 @@ import { useTranslation } from "react-i18next";
 
 interface HierarchyNavProps {
   seriesName: string;
-  seriesId: number;
-  level: "account" | "strategy" | "symbol";
   strategies: string[];
   symbols: string[];
   selectedStrategy?: string;
   selectedSymbol?: string;
   onBackToOverview: () => void;
-  onBackToAccount: () => void;
-  onBackToStrategy: () => void;
   onSelectStrategy: (s: string) => void;
-  onSelectSymbol: (s: string) => void;
+  onSelectSymbol: (s: string | undefined) => void;
 }
 
-const BTN_BASE =
+const CHIP_BASE =
   "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors duration-150 cursor-pointer";
 
-function activeBtn() {
-  return `${BTN_BASE} border-accent bg-accent text-white`;
+function activeChip() {
+  return `${CHIP_BASE} border-accent bg-accent text-white`;
 }
 
-function inactiveBtn() {
-  return `${BTN_BASE} border-border-default bg-surface text-secondary hover:bg-surface-2 hover:text-primary`;
+function inactiveChip() {
+  return `${CHIP_BASE} border-border-default bg-surface text-secondary hover:bg-surface-2 hover:text-primary`;
 }
 
 export default function HierarchyNav({
   seriesName,
-  level,
   strategies,
   symbols,
   selectedStrategy,
   selectedSymbol,
   onBackToOverview,
-  onBackToAccount,
-  onBackToStrategy,
   onSelectStrategy,
   onSelectSymbol,
 }: HierarchyNavProps) {
   const { t } = useTranslation();
+
+  // Line 1: breadcrumb (apex > Account) + all strategy chips
+  // Line 2: ALL + all symbol chips (never collapses)
+
   return (
-    <div className="space-y-3">
-      {/* Breadcrumb */}
-      <div className="flex flex-wrap items-center gap-1">
-        <button type="button" onClick={onBackToOverview} className={inactiveBtn()}>
+    <div className="space-y-2">
+      {/* ── Line 1: Breadcrumb + strategies ── */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button type="button" onClick={onBackToOverview} className={inactiveChip()}>
           {seriesName}
         </button>
 
         <ChevronRight size={14} className="text-muted shrink-0" />
 
-        {level === "account" ? (
-          <span className={activeBtn()}>{t("Account")}</span>
+        {!selectedStrategy ? (
+          <span className={activeChip()}>{t("Account")}</span>
         ) : (
-          <button type="button" onClick={onBackToAccount} className={inactiveBtn()}>
+          <button
+            type="button"
+            onClick={() => onSelectStrategy("")}
+            className={inactiveChip()}
+          >
             {t("Account")}
           </button>
         )}
 
-        {selectedStrategy && (
-          <>
-            <ChevronRight size={14} className="text-muted shrink-0" />
-            {level === "symbol" ? (
-              <button type="button" onClick={onBackToStrategy} className={inactiveBtn()}>
-                {selectedStrategy}
-              </button>
-            ) : (
-              <span className={activeBtn()}>{selectedStrategy}</span>
-            )}
-          </>
-        )}
-
-        {selectedSymbol && (
-          <>
-            <ChevronRight size={14} className="text-muted shrink-0" />
-            <span className={activeBtn()}>{selectedSymbol}</span>
-          </>
-        )}
+        {strategies.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => onSelectStrategy(s)}
+            className={s === selectedStrategy ? activeChip() : inactiveChip()}
+          >
+            {s}
+          </button>
+        ))}
       </div>
 
-      {/* Drill-down chips */}
-      {level === "account" && strategies.length > 0 && (
+      {/* ── Line 2: ALL + symbols ── */}
+      {symbols.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          {strategies.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => onSelectStrategy(s)}
-              className={s === selectedStrategy ? activeBtn() : inactiveBtn()}
-            >
-              {s}
-            </button>
-          ))}
-          <span className="text-[11px] text-muted ml-1">&mdash; {t("strategies")}</span>
-        </div>
-      )}
-
-      {level === "strategy" && symbols.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => onSelectSymbol(undefined)}
+            className={!selectedSymbol ? activeChip() : inactiveChip()}
+          >
+            ALL
+          </button>
           {symbols.map((s) => (
             <button
               key={s}
               type="button"
               onClick={() => onSelectSymbol(s)}
-              className={s === selectedSymbol ? activeBtn() : inactiveBtn()}
+              className={s === selectedSymbol ? activeChip() : inactiveChip()}
             >
               {s}
             </button>
           ))}
-          <span className="text-[11px] text-muted ml-1">&mdash; {t("symbols")}</span>
         </div>
-      )}
-
-      {level === "symbol" && selectedSymbol && (
-        <p className="text-[11px] text-muted">
-          {t("Symbol-level metrics for {{symbol}}", { symbol: selectedSymbol })}
-        </p>
       )}
     </div>
   );

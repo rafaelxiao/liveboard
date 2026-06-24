@@ -1,35 +1,35 @@
 # OpenAPI Completeness & Units Review
 
-Regenerate with: `docker compose up -d` then `curl -sS http://localhost:8000/openapi.json > docs/openapi.json`
+Regenerate with: `docker compose up -d` then `curl -sS http://localhost:8000/v1/openapi.json > docs/openapi.json`
 
 ## Endpoint inventory
 
 | Path | Method | Status | Notes |
 |---|---|---|---|
-| `/health` | GET | ✅ | App liveness |
-| `/docs` | GET | ✅ | Auto-generated Swagger UI |
-| `/openapi.json` | GET | ✅ | Contract export |
-| `/auth/register` | POST | ✅ | Phase 1 — RegisterIn → UserOut (201) |
-| `/auth/login` | POST | ✅ | Phase 1 — LoginIn → TokenPair (200) |
-| `/auth/me` | GET | ✅ | Phase 1 — Bearer → UserOut |
-| `/auth/refresh` | POST | ✅ | Phase 1 — RefreshIn → AccessTokenOut |
-| `/admin/users` | GET | ✅ | Phase 1 — Admin-only, list users |
-| `/admin/users/{id}/approve` | POST | ✅ | Phase 1 — Admin-only |
-| `/admin/users/{id}/reject` | POST | ✅ | Phase 1 — Admin-only |
-| `/api-keys` | POST | ✅ | Phase 1 — Create API key |
-| `/api-keys` | GET | ✅ | Phase 1 — List user's keys |
-| `/api-keys/{id}/revoke` | POST | ✅ | Phase 1 — Revoke key |
-| `/series` | POST | ✅ | Phase 2 — Create series (201) |
-| `/series` | GET | ✅ | Phase 2 — List user's series |
-| `/series/{id}` | GET | ✅ | Phase 2 — Series detail |
-| `/series/{id}/instruments` | POST | ✅ | Phase 2 — Upsert instruments |
-| `/series/{id}/fx-rates` | POST | ✅ | Phase 2 — Ingest FX rates |
-| `/series/{id}/benchmark` | POST | ✅ | Phase 2 — Ingest benchmark returns |
-| `/series/{id}/fills:batch` | POST | ✅ | Phase 2 — Batch fill ingestion |
-| `/series/{id}/fills:void` | POST | ✅ | Phase 2 — Soft-delete fills |
-| `/series/{id}/fund-movements` | POST | ✅ | Phase 2 — Fund movements |
-| `/series/{id}/metrics` | GET | ✅ | Phase 4 — Metrics envelope |
-| `/comparisons` | POST | ✅ | Phase 5 — Multi-series comparison |
+| `/v1/health` | GET | ✅ | App liveness |
+| `/v1/docs` | GET | ✅ | Auto-generated Swagger UI |
+| `/v1/openapi.json` | GET | ✅ | Contract export |
+| `/v1/auth/register` | POST | ✅ | Phase 1 — RegisterIn → UserOut (201) |
+| `/v1/auth/login` | POST | ✅ | Phase 1 — LoginIn → TokenPair (200) |
+| `/v1/auth/me` | GET | ✅ | Phase 1 — Bearer → UserOut |
+| `/v1/auth/refresh` | POST | ✅ | Phase 1 — RefreshIn → AccessTokenOut |
+| `/v1/admin/users` | GET | ✅ | Phase 1 — Admin-only, list users |
+| `/v1/admin/users/{id}/approve` | POST | ✅ | Phase 1 — Admin-only |
+| `/v1/admin/users/{id}/reject` | POST | ✅ | Phase 1 — Admin-only |
+| `/v1/api-keys` | POST | ✅ | Phase 1 — Create API key |
+| `/v1/api-keys` | GET | ✅ | Phase 1 — List user's keys |
+| `/v1/api-keys/{id}/revoke` | POST | ✅ | Phase 1 — Revoke key |
+| `/v1/series` | POST | ✅ | Phase 2 — Create series (201) |
+| `/v1/series` | GET | ✅ | Phase 2 — List user's series |
+| `/v1/series/{id}` | GET | ✅ | Phase 2 — Series detail |
+| `/v1/series/{id}/instruments` | POST | ✅ | Phase 2 — Upsert instruments |
+| `/v1/series/{id}/fx-rates` | POST | ✅ | Phase 2 — Ingest FX rates |
+| `/v1/series/{id}/benchmark` | POST | ✅ | Phase 2 — Ingest benchmark returns |
+| `/v1/series/{id}/fills:batch` | POST | ✅ | Phase 2 — Batch fill ingestion |
+| `/v1/series/{id}/fills:void` | POST | ✅ | Phase 2 — Soft-delete fills |
+| `/v1/series/{id}/fund-movements` | POST | ✅ | Phase 2 — Fund movements |
+| `/v1/series/{id}/metrics` | GET | ✅ | Phase 4 — Metrics envelope |
+| `/v1/comparisons` | POST | ✅ | Phase 5 — Multi-series comparison |
 
 ## Units checklist
 

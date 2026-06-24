@@ -22,6 +22,7 @@ class ComparisonIn(BaseModel):
     date_from: datetime | None = None
     date_to: datetime | None = None
     trade_view: Literal["lot", "position"] = "lot"
+    trade_grouping: Literal["lot", "day"] | None = None
     per_trade_page: int = Field(default=1, ge=1)
     per_trade_page_size: int = Field(default=500, ge=1, le=5000)
 
@@ -98,6 +99,40 @@ class SeriesEquityCurve(BaseModel):
     drawdown_series: list[dict]
 
 
+class ExecutionDeltaGroup(BaseModel):
+    """Per (strategy, symbol) execution delta summary."""
+    name_key: str
+    symbol: str
+    baseline_series_id: int
+    other_series_id: int
+    daily_groups: int
+    weighted_avg_bps: str  # signed: positive = other worse, "—" = no match
+    estimated_pnl_impact: str  # monetized impact, "—" = no match
+    total_notional: str  # total notional used for weighting
+    note: str | None = None  # e.g., "live only" for unmatched symbols
+
+
+class ExecutionComparisonBlock(BaseModel):
+    """Container for execution quality comparison across matched strategies."""
+    groups: list[ExecutionDeltaGroup]
+
+
+class PnlBreakdownRow(BaseModel):
+    """One row in the PnL breakdown table."""
+    month: str
+    name_key: str
+    live_pnl: str
+    sim_pnl: str
+    total_delta: str
+    shared_delta: str
+    date_delta: str
+
+
+class PnlBreakdownBlock(BaseModel):
+    """PnL difference broken down by shared vs different dates, per strategy per month."""
+    rows: list[PnlBreakdownRow]
+
+
 class ComparisonOut(BaseModel):
     meta: ComparisonMeta
     account: AccountBlock
@@ -105,3 +140,5 @@ class ComparisonOut(BaseModel):
     symbol: dict[str, SymbolBlock]
     per_trade: PerTradeBlock
     equity_curves: list[SeriesEquityCurve]
+    execution: ExecutionComparisonBlock | None = None
+    pnl_breakdown: PnlBreakdownBlock | None = None

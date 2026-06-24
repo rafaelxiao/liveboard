@@ -45,3 +45,16 @@ def get_api_user(
     from app.services import api_keys as api_keys_service
 
     return api_keys_service.resolve_api_key(db, x_api_key)
+
+
+def get_user(
+    authorization: str | None = Header(default=None),
+    x_api_key: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> User:
+    """Accept either Bearer JWT or X-API-Key header."""
+    if authorization and authorization.startswith("Bearer "):
+        return get_current_user(authorization=authorization, db=db)
+    if x_api_key:
+        return get_api_user(x_api_key=x_api_key, db=db)
+    raise AuthError("missing Authorization or X-API-Key header")

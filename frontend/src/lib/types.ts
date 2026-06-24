@@ -64,7 +64,7 @@ export interface MetaBlock {
   level: Level;
   base_currency: string;
   session_tz: string;
-  date_range: { from: string; to: string };
+  date_range: { from_: string; to: string };
   strategy?: string;
   symbol?: string;
   capital_base: string | null;
@@ -130,6 +130,25 @@ export interface StrategyBrief {
   name: string;
 }
 
+export interface SharedSeriesOut {
+  series: SeriesSummary;
+  metrics: MetricsEnvelope | null;
+  pnl_color_scheme?: string;
+  lang?: string;
+}
+
+export interface ShareLinkOut {
+  id: number;
+  token: string;
+  slug?: string;
+  series_id?: number;
+  series_name?: string;
+  expires_at: string | null;
+  created_at: string;
+  last_accessed_at: string | null;
+  url: string;
+}
+
 export interface SeriesSummary {
   id: number;
   name: string;
@@ -141,6 +160,13 @@ export interface SeriesSummary {
   summary?: {
     capital_base: string | null;
     cumulative_pnl: string | null;
+    end_capital: string | null;
+    return_pct: string | null;
+    sharpe: string | null;
+    max_drawdown: string | null;
+    max_drawdown_pct: string | null;
+    trade_start: string | null;
+    trade_end: string | null;
   };
   strategies?: StrategyBrief[];
 }
@@ -205,6 +231,7 @@ export interface ComparisonRequest {
   baseline_entity_index?: number;
   date_from?: string;
   date_to?: string;
+  trade_grouping?: string;
 }
 
 export interface PerTradeDiff {
@@ -254,6 +281,18 @@ export interface ComparisonEquityCurve {
   drawdown_series: DrawdownPoint[];
 }
 
+export interface ExecutionDeltaGroup {
+  name_key: string;
+  symbol: string;
+  baseline_series_id: number;
+  other_series_id: number;
+  daily_groups: number;
+  weighted_avg_bps: string;
+  estimated_pnl_impact: string;
+  total_notional: string;
+  note?: string;
+}
+
 export interface ComparisonResponse {
   meta: {
     base_currency: string;
@@ -271,4 +310,20 @@ export interface ComparisonResponse {
     unmatched: Record<string, UnmatchedFill[]>;
   };
   equity_curves: ComparisonEquityCurve[];
+  execution?: {
+    groups: ExecutionDeltaGroup[];
+  };
+  pnl_breakdown?: {
+    rows: PnlBreakdownRow[];
+  };
+}
+
+export interface PnlBreakdownRow {
+  month: string;
+  name_key: string;
+  live_pnl: string;
+  sim_pnl: string;
+  total_delta: string;
+  shared_delta: string;
+  date_delta: string;
 }

@@ -69,6 +69,7 @@
     "postFundMovements": "提交资金变动（批量）",
     "postFills": "批量导入成交",
     "voidFills": "按 client_fill_id 作废成交",
+    "deleteFillsByStrategy": "按策略批量作废成交。?strategy=名称&date_from=&date_to=",
     "getMetrics": "计算指标 — ?level=&strategy=&symbol=&date_from=&date_to=",
     "postBenchmark": "提交基准 NAV 序列用于计算 beta/alpha",
     "compare": "对比 2 个以上序列/策略（level=account|strategy, strategy_keys, 指标 + 权益曲线）",
@@ -79,7 +80,12 @@
     "createApiKey": "创建 API 密钥",
     "listApiKeys": "列出 API 密钥（仅前缀）",
     "revokeApiKey": "吊销 API 密钥",
-    "health": "健康检查 — 返回 {\"status\":\"ok\"}"
+    "createShare": "创建分享链接（可选 expires_in_days）",
+    "listShares": "列出序列的分享链接",
+    "revokeShare": "吊销分享链接",
+    "viewShared": "公开查看已分享的序列（无需登录）",
+    "health": "健康检查 — 返回 {\"status\":\"ok\"}",
+    "getFundMovements": "查询资金流水"
   },
   "footer": {
     "platform": "LiveBoard — 交易分析平台",

@@ -23,7 +23,7 @@ def test_create_series(db_session):
         db_session,
         user_id=user.id,
         data=SeriesCreateIn(
-            name="Real", tag="real", base_currency="USD", session_tz="America/New_York"
+            name="Real", tag="live", base_currency="USD", session_tz="America/New_York"
         ),
     )
     series = db_session.get(Series, sid)

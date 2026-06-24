@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, get_db
+from app.core.deps import get_user, get_db
 from app.models.user import User
 from app.schemas.comparison import ComparisonIn, ComparisonOut
 from app.services.comparison import compare
@@ -13,7 +13,7 @@ router = APIRouter(tags=["comparisons"])
 def post_comparison(
     body: ComparisonIn,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_user),
 ) -> ComparisonOut:
     return compare(
         session=db,
@@ -26,6 +26,7 @@ def post_comparison(
         date_from=body.date_from,
         date_to=body.date_to,
         trade_view=body.trade_view,
+        trade_grouping=body.trade_grouping or "day",
         per_trade_page=body.per_trade_page,
         per_trade_page_size=body.per_trade_page_size,
     )

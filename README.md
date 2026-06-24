@@ -16,7 +16,7 @@ docker compose up -d  # or: bash scripts/start.sh
 
 Open http://localhost:5175 — login with credentials from `.env` (`ADMIN_EMAIL` / `ADMIN_PASSWORD`).
 
-API docs at http://localhost:5175/api/docs.
+API docs at http://localhost:8002/v1/docs (backend) or http://localhost:5175/api/v1/docs (frontend proxy).
 
 ## Architecture
 
@@ -50,6 +50,18 @@ All financial computation happens in the backend; the frontend renders data and 
 - **Node.js >= 18**
 - **Docker** + Docker Compose (recommended) OR **PostgreSQL 16** installed locally
 
+### PostgreSQL (no Docker)
+
+| OS | Install |
+|----|---------|
+| macOS | `brew install postgresql@16 && brew services start postgresql@16` |
+| Ubuntu/Debian | `sudo apt install postgresql-16 && sudo systemctl start postgresql` |
+
+Then create a database:
+```bash
+createdb liveboard  # or configure DATABASE_URL in backend/.env
+```
+
 ## Local Development
 
 ### With Docker (recommended)
@@ -62,15 +74,29 @@ docker compose up -d
 ### Without Docker
 
 ```bash
-# 1. Start PostgreSQL 16 manually, then:
+# 1. Ensure PostgreSQL 16 is running, then:
 bash scripts/setup.sh
 
-# 2. Run backend
-cd backend && uv run uvicorn app.main:app --reload --port 8002
+# 2. Development (hot reload + HMR)
+bash scripts/dev.sh
 
-# 3. Run frontend
-cd frontend && npm run dev
+# 3. Or production (build static files + backend only)
+bash scripts/start.sh
 ```
+
+> **Dev vs Prod**: `dev.sh` starts backend on `:8003` + Vite on `:5175` with HMR.
+> `start.sh` starts backend on `:8002` + builds `dist/` for nginx. Both share the same database.
+
+### Nginx configuration
+
+Copy `liveboard.nginx.conf` into your nginx config. It sets up:
+
+| Path | Purpose |
+|------|---------|
+| `/liveboard/` | Production frontend (static files from `dist/`) |
+| `/liveboard/dev/` | Dev frontend (Vite HMR on `:5175`) |
+| `/liveboard/api/` | Production API → backend `:8002` |
+| `/liveboard/dev/api/` | Dev API → backend `:8003` |
 
 ## Environment Variables
 
@@ -83,7 +109,7 @@ See `.env.example` for all options. Key variables:
 | `JWT_SECRET` | HMAC-SHA256 signing secret |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Initial admin credentials (idempotent seed) |
 | `CORS_ORIGINS` | Comma-separated allowed origins |
-| `VITE_API_BASE_URL` | Frontend API base path (default `/api`) |
+| `VITE_API_BASE_URL` | Frontend API base path (prod: `/liveboard/api/v1`, dev: auto-set by `dev.sh`) |
 | `BACKEND_PORT` / `FRONTEND_PORT` | Ports for `scripts/start.sh` (8002 / 5175) |
 | `RISK_FREE_RATE` | Annual risk-free rate for Sharpe/Sortino |
 | `SHARPE_MIN_SAMPLE_TRADES` | Min round-trips before flagging low sample |
@@ -113,10 +139,16 @@ bash scripts/smoke.sh
 | Script | Purpose |
 |--------|---------|
 | `scripts/setup.sh` | Install dependencies, copy `.env`, run migrations |
-| `scripts/start.sh` | Start all services (backend + frontend) |
+| `scripts/start.sh` | **Production** — start backend + build frontend to `dist/` |
+| `scripts/dev.sh` | **Development** — start backend + Vite dev server with hot reload |
 | `scripts/smoke.sh` | Integration smoke test |
 | `scripts/generate_mock_data.py` | Generate test trade data |
 | `scripts/init-test-db.sh` | Initialize the test database |
+
+> All scripts are cross-platform. PostgreSQL is auto-detected via Homebrew (macOS) or systemd (Linux).
+>
+> `dev.sh` is what you want during development (instant HMR).
+> `start.sh` builds static files for nginx — run this on the server, then `npm run build` after code changes.
 
 ## Deployment
 
@@ -125,7 +157,12 @@ Docker Compose is production-ready. For cloud deployment:
 1. Set a strong `JWT_SECRET` (`openssl rand -hex 32`)
 2. Change default admin credentials
 3. Set `CORS_ORIGINS` to your domain
-4. Use a reverse proxy (nginx / Caddy) with HTTPS
+4. Use a reverse proxy (nginx / Caddy) with HTTPS — see `liveboard.nginx.conf`
+
+After deploying, update the frontend by rebuilding:
+```bash
+cd frontend && npm run build   # nginx picks up dist/ automatically
+```
 
 ## License
 

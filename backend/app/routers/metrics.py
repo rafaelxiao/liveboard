@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user
+from app.core.deps import get_user
 from app.db import get_db
 from app.models.user import User
 from app.schemas.metrics import MetricsEnvelope
@@ -20,9 +20,10 @@ def get_metrics(
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
     trade_view: str = Query("lot"),
+    trade_grouping: str = Query("lot"),
     active_days_only: bool = Query(False),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_user),
 ) -> MetricsEnvelope:
     try:
         get_owned_series(db, user.id, series_id)
@@ -45,5 +46,6 @@ def get_metrics(
         date_from=df,
         date_to=dt,
         trade_view=trade_view,
+        trade_grouping=trade_grouping,
         active_days_only=active_days_only,
     )

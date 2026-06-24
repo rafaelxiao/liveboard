@@ -22,6 +22,13 @@
     "netPnl": "净盈亏",
     "maxDD": "最大回撤"
   },
+  "executionQuality": "执行质量",
+  "strategy": "策略",
+  "symbol": "标的",
+  "dailyGroups": "日期组数",
+  "deltaBps": "Δ 基点",
+  "estimatedImpact": "估计影响",
+  "executionQualityNote": "每日VWAP对比：{{baseline}}（基准） vs {{other}}。+Δ bps = {{other}} 买入更贵/卖出更便宜。影响 = Σ(Δ bps × 名义值 / 10000)。",
   "metrics": {
     "Net PnL": "净盈亏",
     "Gross PnL": "毛盈亏",

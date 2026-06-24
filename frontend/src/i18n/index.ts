@@ -9,6 +9,7 @@ import enDashboard from "./locales/en/dashboard.json";
 import enCompare from "./locales/en/compare.json";
 import enSettings from "./locales/en/settings.json";
 import enDocs from "./locales/en/docs.json";
+import enShare from "./locales/en/share.json";
 
 // Chinese locale files
 import zhCommon from "./locales/zh/common.json";
@@ -17,6 +18,7 @@ import zhDashboard from "./locales/zh/dashboard.json";
 import zhCompare from "./locales/zh/compare.json";
 import zhSettings from "./locales/zh/settings.json";
 import zhDocs from "./locales/zh/docs.json";
+import zhShare from "./locales/zh/share.json";
 
 i18n
   .use(LanguageDetector)
@@ -30,6 +32,7 @@ i18n
         compare: enCompare,
         settings: enSettings,
         docs: enDocs,
+        share: enShare,
       },
       zh: {
         common: zhCommon,
@@ -38,6 +41,7 @@ i18n
         compare: zhCompare,
         settings: zhSettings,
         docs: zhDocs,
+        share: zhShare,
       },
     },
     fallbackLng: "en",

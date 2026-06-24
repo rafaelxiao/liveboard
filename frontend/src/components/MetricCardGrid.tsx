@@ -17,19 +17,20 @@ export default function MetricCardGrid({ envelope }: MetricCardGridProps) {
   const isSymbol = meta.level === "symbol";
   const ccy = meta.base_currency;
 
+  // Always call all hooks — never conditionally
+  const symbolCards = useMemo(() => getSymbolCards(metrics, ccy, t), [metrics, ccy, t]);
+  const performance = useMemo(() => getPerformanceCards(metrics, ccy, meta, t), [metrics, ccy, meta, t]);
+  const tradeBehavior = useMemo(() => getTradeBehaviorCards(metrics, ccy, t), [metrics, ccy, t]);
+
   if (isSymbol) {
-    const cards = useMemo(() => getSymbolCards(metrics, ccy, t), [metrics, ccy, t]);
     return (
       <div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 responsive-card-grid">
-          {cards.map((c, i) => <MetricCard key={i} {...c} />)}
+          {symbolCards.map((c, i) => <MetricCard key={i} {...c} />)}
         </div>
       </div>
     );
   }
-
-  const performance = useMemo(() => getPerformanceCards(metrics, ccy, meta, t), [metrics, ccy, meta, t]);
-  const tradeBehavior = useMemo(() => getTradeBehaviorCards(metrics, ccy, t), [metrics, ccy, t]);
 
   return (
     <div className="space-y-4">

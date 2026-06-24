@@ -38,7 +38,7 @@ describe("LoginPage", () => {
 
   it("captures a 403 and shows 'awaiting approval' (I2), not a generic error", async () => {
     server.use(
-      http.post("/api/auth/login", () =>
+      http.post("/liveboard/api/v1/auth/login", () =>
         HttpResponse.json({ error: { code: "forbidden", message: "awaiting approval" } }, { status: 403 }),
       ),
     );
@@ -50,7 +50,7 @@ describe("LoginPage", () => {
 
   it("shows 'incorrect email or password' on 401", async () => {
     server.use(
-      http.post("/api/auth/login", () =>
+      http.post("/liveboard/api/v1/auth/login", () =>
         HttpResponse.json({ error: { code: "unauthorized", message: "bad creds" } }, { status: 401 }),
       ),
     );
@@ -61,10 +61,10 @@ describe("LoginPage", () => {
 
   it("stores tokens and redirects to /dashboard on success (I3)", async () => {
     server.use(
-      http.post("/api/auth/login", () =>
+      http.post("/liveboard/api/v1/auth/login", () =>
         HttpResponse.json({ access_token: "a1", refresh_token: "r1" }),
       ),
-      http.get("/api/auth/me", () =>
+      http.get("/liveboard/api/v1/auth/me", () =>
         HttpResponse.json({ id: 1, email: "u@x.c", role: "user", status: "approved", created_at: "x" }),
       ),
     );

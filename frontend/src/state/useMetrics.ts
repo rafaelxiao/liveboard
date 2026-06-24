@@ -7,9 +7,10 @@ export function useMetrics(p: DashboardParams) {
   return useQuery<MetricsEnvelope>({
     queryKey: [
       "metrics", p.series, p.level, p.strategy ?? null, p.symbol ?? null,
-      p.from ?? null, p.to ?? null,
+      p.from ?? null, p.to ?? null, p.trade_grouping ?? null,
     ],
     queryFn: () => getMetrics(p),
     enabled: !!p.series,
+    staleTime: 30_000,
   });
 }

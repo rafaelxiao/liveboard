@@ -1,34 +1,20 @@
 import { useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  ReferenceLine,
-  Legend,
-} from "recharts";
+import EquityChart from "../components/EquityChart";
+import DrawdownChart from "../components/DrawdownChart";
 import { useComparison } from "../state/useComparison";
 import { useSeriesList } from "../state/useSeries";
+import { useTradeGroupingStore } from "../state/tradeGroupingStore";
 import type { ComparisonRequest, ComparisonLevel, StrategyKey } from "../lib/types";
 import EntityPicker from "../components/EntityPicker";
 import DateRangePicker from "../components/DateRangePicker";
-import NormalizationToggle from "../components/NormalizationToggle";
-import HoverStatsPanel from "../components/HoverStatsPanel";
 import ComparisonTable from "../components/ComparisonTable";
 import AlertBanner from "../components/AlertBanner";
 import EmptyState from "../components/EmptyState";
 import StandaloneSeriesFlag from "../components/StandaloneSeriesFlag";
 import { SkeletonCard } from "../components/SkeletonCard";
 import { formatCurrency } from "../lib/format";
-import { SERIES_COLORS } from "../lib/constants";
-
-const NORMALIZED_BASE = 100_000;
-
 export default function ComparisonPage() {
   const { t } = useTranslation("compare");
   const [searchParams, setSearchParams] = useSearchParams();
@@ -69,8 +55,8 @@ export default function ComparisonPage() {
 
   // Normalization
   const [normalization, setNormalization] = useState<"absolute" | "indexed">("absolute");
+  const [ddMode, setDdMode] = useState<"absolute" | "indexed">("absolute");
   const [submitted, setSubmitted] = useState(false);
-  const [hoveredTimestamp, setHoveredTimestamp] = useState<string | null>(null);
 
   // Load series list for pickers
   const { data: seriesList } = useSeriesList();
@@ -83,6 +69,8 @@ export default function ComparisonPage() {
     return selectedIds;
   }, [level, selectedIds, strategyKeys]);
 
+  const tradeGrouping = useTradeGroupingStore((s) => s.grouping);
+
   const req: ComparisonRequest | null =
     submitted && derivedSeriesIds.length >= 2
       ? {
@@ -91,6 +79,7 @@ export default function ComparisonPage() {
           strategy_keys: level === "strategy" ? strategyKeys : undefined,
           date_from: from,
           date_to: to,
+          trade_grouping: tradeGrouping,
         }
       : null;
 
@@ -108,40 +97,6 @@ export default function ComparisonPage() {
       }))
     );
   }, [seriesList, level]);
-
-  // Merge equity curves for chart (timestamp-based alignment)
-  const chartData = useMemo(() => {
-    if (!data?.equity_curves) return [];
-    const curves = data.equity_curves;
-    if (curves.length === 0) return [];
-
-    // Collect union of all timestamps across all curves
-    const tsSet = new Set<string>();
-    curves.forEach((c) => c.equity_curve.forEach((p) => tsSet.add(p.ts)));
-    const allTs = Array.from(tsSet).sort();
-
-    // Track last known value per curve to carry-forward missing points
-    const lastVal: (number | null)[] = new Array(curves.length).fill(null);
-
-    return allTs.map((ts) => {
-      const point: Record<string, unknown> = { ts };
-      curves.forEach((curve, ci) => {
-        const match = curve.equity_curve.find((p) => p.ts === ts);
-        if (match) {
-          const val =
-            normalization === "indexed"
-              ? parseFloat(match.indexed_return) * 100
-              : (parseFloat(match.indexed_return) + 1) * NORMALIZED_BASE;
-          lastVal[ci] = val;
-        }
-        // Carry-forward: use last known value for missing timestamps
-        if (lastVal[ci] !== null) {
-          point[`v${ci}`] = lastVal[ci];
-        }
-      });
-      return point;
-    });
-  }, [data, normalization]);
 
   // URL updaters
   const setParams = useCallback(
@@ -161,16 +116,22 @@ export default function ComparisonPage() {
   const handleCompare = () => {
     if (level === "account" && selectedIds.length < 2) return;
     if (level === "strategy" && strategyKeys.length < 2) return;
-    setSubmitted(true);
-  };
 
-  // Y-axis formatter
-  const yAxisFormatter = (v: number) => {
-    if (normalization === "indexed") return `${v.toFixed(1)}%`;
-    const abs = Math.abs(v);
-    if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-    if (abs >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
-    return v.toFixed(0);
+    // Auto-align to overlapping date range when no dates are set
+    if (!from && !to && seriesList) {
+      const selectedSeries = seriesList.filter((s) => derivedSeriesIds.includes(s.id));
+      const starts = selectedSeries.map((s) => s.summary?.trade_start).filter(Boolean) as string[];
+      const ends = selectedSeries.map((s) => s.summary?.trade_end).filter(Boolean) as string[];
+      if (starts.length >= 2 && ends.length >= 2) {
+        const overlapFrom = starts.sort().reverse()[0]; // latest start
+        const overlapTo = ends.sort()[0]; // earliest end
+        setParams({ from: overlapFrom, to: overlapTo });
+        setSubmitted(true);
+        return;
+      }
+    }
+
+    setSubmitted(true);
   };
 
   const baseCurrency = data?.meta?.base_currency || "USD";
@@ -269,106 +230,24 @@ export default function ComparisonPage() {
           ))}
 
           {/* Chart */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-secondary">{t("equityCurves")}</h3>
-              <NormalizationToggle
-                value={normalization}
-                onChange={setNormalization}
-              />
-            </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart
-                data={chartData}
-                onMouseMove={(e) => {
-                  if (e?.activeTooltipIndex !== undefined && typeof e.activeTooltipIndex === "number") {
-                    const ts = chartData[e.activeTooltipIndex]?.ts as string | undefined;
-                    if (ts) setHoveredTimestamp(ts);
-                  }
-                }}
-                onMouseLeave={() => setHoveredTimestamp(null)}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
-                <XAxis dataKey="ts" tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={yAxisFormatter} tick={{ fontSize: 11 }} />
-                <Tooltip
-                  content={(props) => {
-                    const { active, payload, label } = props;
-                    if (!active || !payload || payload.length === 0) return null;
-
-                    const values = data.equity_curves.map((_, i) => {
-                      const entry = payload.find((p) => p.dataKey === `v${i}`);
-                      if (!entry) return null;
-                      const num = Number(entry.value);
-                      if (isNaN(num)) return null;
-                      return { name: data.equity_curves[i].name, value: num, color: SERIES_COLORS[i % SERIES_COLORS.length] };
-                    }).filter(Boolean) as Array<{ name: string; value: number; color: string }>;
-
-                    if (values.length === 0) return null;
-
-                    return (
-                      <div
-                        style={{
-                          backgroundColor: "rgb(var(--bg-surface-3))",
-                          color: "rgb(var(--text-primary))",
-                          border: "1px solid rgb(var(--border-default))",
-                          borderRadius: "6px",
-                          padding: "6px 10px",
-                          fontSize: "12px",
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-                        }}
-                      >
-                        <div style={{ color: "rgb(var(--text-muted))", marginBottom: 4, fontSize: "10px" }}>{label}</div>
-                        {values.map((v, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: v.color }} />
-                            <span style={{ color: "rgb(var(--text-secondary))" }}>{v.name}:</span>
-                            <span className="font-mono" style={{ color: "rgb(var(--text-primary))" }}>
-                              {normalization === "indexed"
-                                ? `${v.value.toFixed(2)}%`
-                                : formatCurrency(String(v.value), baseCurrency)}
-                            </span>
-                          </div>
-                        ))}
-                        {values.length === 2 && (
-                          <div className="flex items-center gap-2 mt-1 pt-1" style={{ borderTop: "1px solid rgb(var(--border-default))" }}>
-                            <span style={{ color: "rgb(var(--text-muted))", fontSize: "10px" }}>Δ</span>
-                            <span className={`font-mono ${values[0].value - values[1].value >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>
-                              {normalization === "indexed"
-                                ? `${(values[0].value - values[1].value) >= 0 ? "+" : ""}${(values[0].value - values[1].value).toFixed(2)}%`
-                                : formatCurrency(String(values[0].value - values[1].value), baseCurrency)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }}
-                />
-                <ReferenceLine y={normalization === "indexed" ? 0 : NORMALIZED_BASE} stroke="var(--border-default)" />
-                <Legend
-                  wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }}
-                  iconType="line"
-                />
-                {data.equity_curves.map((curve, i) => (
-                  <Line
-                    key={curve.series_id}
-                    type="monotone"
-                    dataKey={`v${i}`}
-                    name={curve.name}
-                    stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
-                    dot={false}
-                    strokeWidth={2}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Hover Stats Panel */}
-          <HoverStatsPanel
-            curves={data.equity_curves}
-            hoveredTimestamp={hoveredTimestamp}
+          <EquityChart
+            series={data.equity_curves.map((c) => ({
+              name: c.name,
+              points: c.equity_curve,
+            }))}
             baseCurrency={baseCurrency}
+            mode={normalization}
+            onModeChange={setNormalization}
+          />
+
+          <DrawdownChart
+            series={data.equity_curves.map((c) => ({
+              name: c.name,
+              points: c.drawdown_series,
+            }))}
+            baseCurrency={baseCurrency}
+            mode={ddMode}
+            onModeChange={setDdMode}
           />
 
           {/* Head-to-Head Table */}
@@ -382,6 +261,164 @@ export default function ComparisonPage() {
               baseCurrency={baseCurrency}
             />
           </div>
+
+          {/* PnL Breakdown */}
+          {data.pnl_breakdown && data.pnl_breakdown.rows.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-secondary mb-2">
+                PnL Breakdown (Live - Sim)
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border-default">
+                      {data.pnl_breakdown.rows[0]?.name_key && (
+                        <th className="text-left py-2 px-3 font-medium text-secondary">Strategy</th>
+                      )}
+                      <th className="text-left py-2 px-3 font-medium text-secondary">Month</th>
+                      <th className="text-right py-2 px-3 font-medium text-secondary">Live PnL</th>
+                      <th className="text-right py-2 px-3 font-medium text-secondary">Sim PnL</th>
+                      <th className="text-right py-2 px-3 font-medium text-secondary">Total Δ</th>
+                      <th className="text-right py-2 px-3 font-medium text-secondary">Shared Δ</th>
+                      <th className="text-right py-2 px-3 font-medium text-secondary">Date Δ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.pnl_breakdown.rows.map((row, i) => {
+                      const td = parseFloat(row.total_delta);
+                      const sd = parseFloat(row.shared_delta);
+                      const dd = parseFloat(row.date_delta);
+                      return (
+                        <tr key={i} className="border-b border-border-default/50 hover:bg-surface-2/50">
+                          {row.name_key && (
+                            <td className="py-1.5 px-3 text-secondary">{row.name_key}</td>
+                          )}
+                          <td className="py-1.5 px-3 text-secondary">{row.month}</td>
+                          <td className="py-1.5 px-3 text-right font-mono text-secondary">
+                            {formatCurrency(row.live_pnl, baseCurrency)}
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono text-secondary">
+                            {formatCurrency(row.sim_pnl, baseCurrency)}
+                          </td>
+                          <td className={`py-1.5 px-3 text-right font-mono ${td >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>
+                            {formatCurrency(row.total_delta, baseCurrency)}
+                          </td>
+                          <td className={`py-1.5 px-3 text-right font-mono ${sd >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>
+                            {formatCurrency(row.shared_delta, baseCurrency)}
+                          </td>
+                          <td className={`py-1.5 px-3 text-right font-mono ${dd >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>
+                            {formatCurrency(row.date_delta, baseCurrency)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-border-default font-semibold">
+                      <td className="py-1.5 px-3 text-secondary" colSpan={data.pnl_breakdown.rows[0]?.name_key ? 2 : 1}>
+                        TOTAL
+                      </td>
+                      {(() => {
+                        const tl = data.pnl_breakdown.rows.reduce((s, r) => s + parseFloat(r.live_pnl), 0);
+                        const ts = data.pnl_breakdown.rows.reduce((s, r) => s + parseFloat(r.sim_pnl), 0);
+                        const tt = data.pnl_breakdown.rows.reduce((s, r) => s + parseFloat(r.total_delta), 0);
+                        const tsh = data.pnl_breakdown.rows.reduce((s, r) => s + parseFloat(r.shared_delta), 0);
+                        const td = data.pnl_breakdown.rows.reduce((s, r) => s + parseFloat(r.date_delta), 0);
+                        return (
+                          <>
+                            <td className="py-1.5 px-3 text-right font-mono text-secondary">{formatCurrency(String(tl), baseCurrency)}</td>
+                            <td className="py-1.5 px-3 text-right font-mono text-secondary">{formatCurrency(String(ts), baseCurrency)}</td>
+                            <td className={`py-1.5 px-3 text-right font-mono ${tt >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>{formatCurrency(String(tt), baseCurrency)}</td>
+                            <td className={`py-1.5 px-3 text-right font-mono ${tsh >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>{formatCurrency(String(tsh), baseCurrency)}</td>
+                            <td className={`py-1.5 px-3 text-right font-mono ${td >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>{formatCurrency(String(td), baseCurrency)}</td>
+                          </>
+                        );
+                      })()}
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <p className="mt-1 text-[10px] text-muted">
+                Shared Δ = difference on days both strategies traded. Date Δ = difference from days only one traded.
+              </p>
+            </div>
+          )}
+
+          {/* Execution Quality Table */}
+          {data.execution && data.execution.groups.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-secondary mb-2">
+                {t("executionQuality")}
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border-default">
+                      {data.execution.groups[0]?.name_key && !data.execution.groups[0]?.symbol && (
+                        <th className="text-left py-2 px-3 font-medium text-secondary">
+                          {t("strategy")}
+                        </th>
+                      )}
+                      {data.execution.groups[0]?.symbol && (
+                        <th className="text-left py-2 px-3 font-medium text-secondary">
+                          {t("symbol")}
+                        </th>
+                      )}
+                      <th className="text-right py-2 px-3 font-medium text-secondary">
+                        Round Trips
+                      </th>
+                      <th className="text-right py-2 px-3 font-medium text-secondary">
+                        {t("deltaBps")}
+                      </th>
+                      <th className="text-right py-2 px-3 font-medium text-secondary">
+                        {t("estimatedImpact")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.execution.groups.map((g) => {
+                      const bps = parseFloat(g.weighted_avg_bps);
+                      const impact = parseFloat(g.estimated_pnl_impact);
+                      // Neutral coloring by magnitude only — no good/bad judgment
+                      const absImpact = Math.abs(impact);
+                      const colorClass =
+                        absImpact < 100
+                          ? "text-secondary"
+                          : "text-accent";
+                      return (
+                        <tr
+                          key={`${g.name_key}-${g.symbol}`}
+                          className="border-b border-border-default/50 hover:bg-surface-2/50"
+                        >
+                          {g.name_key && !g.symbol && (
+                            <td className="py-1.5 px-3 text-secondary">{g.name_key}</td>
+                          )}
+                          {g.symbol && (
+                            <td className="py-1.5 px-3 text-secondary font-mono">
+                              {g.symbol}
+                              {g.note && <span className="ml-1 text-[10px] text-muted">({g.note})</span>}
+                            </td>
+                          )}
+                          <td className="py-1.5 px-3 text-right font-mono text-secondary">
+                            {g.daily_groups}
+                          </td>
+                          <td className={`py-1.5 px-3 text-right font-mono ${colorClass}`}>
+                            {isNaN(bps) ? "—" : `${bps > 0 ? "+" : ""}${bps.toFixed(1)} bps`}
+                          </td>
+                          <td className={`py-1.5 px-3 text-right font-mono ${colorClass}`}>
+                            {isNaN(impact) ? "—" : `${impact > 0 ? "+" : ""}${formatCurrency(String(impact), baseCurrency)}`}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-1 text-[10px] text-muted">
+                Per-trade spread = (sell − buy) / buy. +Δ = baseline captures more spread (better execution).
+              </p>
+            </div>
+          )}
         </>
       )}
     </div>

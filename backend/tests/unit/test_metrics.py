@@ -159,3 +159,100 @@ def test_flags_suppression_below_five():
 def test_apply_suppression_nulls_value():
     assert metrics.apply_suppression(1.23, True) is None
     assert metrics.apply_suppression(1.23, False) == 1.23
+
+
+# ---------------------------------------------------------------------------
+# symbol_contribution — signed contribution using abs(denominator)
+# ---------------------------------------------------------------------------
+
+
+def test_symbol_contribution_negative_strategy():
+    """Losing symbol in losing strategy → negative contribution."""
+    assert metrics.symbol_contribution(Decimal("-1000"), Decimal("-5000")) == Decimal("-0.200000000000")
+
+
+def test_symbol_contribution_winning_symbol_in_losing_strategy():
+    """Winning symbol in losing strategy → positive (it offset losses)."""
+    assert metrics.symbol_contribution(Decimal("1000"), Decimal("-5000")) == Decimal("0.200000000000")
+
+
+def test_symbol_contribution_winning_strategy():
+    """Both winning → positive."""
+    assert metrics.symbol_contribution(Decimal("3000"), Decimal("10000")) == Decimal("0.300000000000")
+
+
+def test_symbol_contribution_losing_symbol_in_winning_strategy():
+    """Losing symbol in winning strategy → negative."""
+    assert metrics.symbol_contribution(Decimal("-2000"), Decimal("10000")) == Decimal("-0.200000000000")
+
+
+# ---------------------------------------------------------------------------
+# drawdown_series — with and without capital_base
+# ---------------------------------------------------------------------------
+
+
+def test_drawdown_series_with_capital_base():
+    """Drawdown pct uses (peak + capital_base) as denominator."""
+    from datetime import datetime, timezone
+    # Simulate: start 625K, make +5K, then lose -10K
+    # Peak PnL = 5K, trough PnL = -5K, drawdown = -10K from peak
+    # Denominator = 5K + 625K = 630K
+    # pct = -10K / 630K ≈ -1.59%
+    curve = [
+        (datetime(2024, 1, 1, tzinfo=timezone.utc), Decimal("0")),
+        (datetime(2024, 1, 2, tzinfo=timezone.utc), Decimal("5000")),
+        (datetime(2024, 1, 3, tzinfo=timezone.utc), Decimal("-5000")),
+    ]
+    cap = Decimal("625000")
+    dd = metrics.drawdown_series(curve, capital_base=cap)
+    assert len(dd) == 3
+    # Point 1: at +5K, peak=5K, dd=0, pct=0/(5K+625K)=0
+    assert dd[1][2] == Decimal("0")
+    # Point 2: at -5K, peak=5K, dd=-10K, pct=-10K/630K
+    expected = Decimal("-10000") / (Decimal("5000") + cap)
+    assert dd[2][2] == expected
+
+
+def test_drawdown_series_without_capital_base():
+    """Without capital_base, falls back to pct = dd / peak."""
+    from datetime import datetime, timezone
+    curve = [
+        (datetime(2024, 1, 1, tzinfo=timezone.utc), Decimal("0")),
+        (datetime(2024, 1, 2, tzinfo=timezone.utc), Decimal("100")),
+        (datetime(2024, 1, 3, tzinfo=timezone.utc), Decimal("50")),
+    ]
+    dd = metrics.drawdown_series(curve)
+    # At point 2: peak=100, dd=-50, pct=-50/100=-0.5
+    assert dd[2][2] == Decimal("-0.5")
+
+
+# ---------------------------------------------------------------------------
+# _group_rts_by_day
+# ---------------------------------------------------------------------------
+
+
+def test_group_rts_by_day_merges_same_day():
+    """Round-trips on the same date are merged into one synthetic RT."""
+    tz = "America/New_York"
+    rts = [
+        _rt("2024-01-02T15:00:00+00:00", "100"),  # Jan 2
+        _rt("2024-01-02T16:00:00+00:00", "-30"),  # Jan 2
+        _rt("2024-01-03T15:00:00+00:00", "50"),   # Jan 3
+    ]
+    grouped = metrics._group_rts_by_day(rts, tz)
+    assert len(grouped) == 2
+    # Jan 2: net = 100 - 30 = 70
+    assert grouped[0].net_pnl == Decimal("70")
+    # Jan 3: net = 50
+    assert grouped[1].net_pnl == Decimal("50")
+
+
+def test_group_rts_by_day_single():
+    """Single round-trip per day → same count."""
+    tz = "America/New_York"
+    rts = [
+        _rt("2024-01-02T15:00:00+00:00", "100"),
+        _rt("2024-01-03T15:00:00+00:00", "50"),
+    ]
+    grouped = metrics._group_rts_by_day(rts, tz)
+    assert len(grouped) == 2

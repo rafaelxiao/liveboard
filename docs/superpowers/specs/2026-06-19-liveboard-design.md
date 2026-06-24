@@ -48,7 +48,7 @@ can consume directly. To honor that, the API contract must be:
   numbers, decided once and documented) so no consumer suffers float drift. Each numeric
   field states its unit (currency code, percent, ratio, seconds, count).
 - **Stable & versioned.** Response schemas are defined by Pydantic models and surfaced via
-  the auto-generated **OpenAPI** spec at `/openapi.json` (+ `/docs`). The HTTP API is the
+  the auto-generated **OpenAPI** spec at `/v1/openapi.json` (+ `/v1/docs`). The HTTP API is the
   one public contract; the React app is just its first consumer. Breaking changes are
   versioned.
 - **Consumer-agnostic.** Responses contain data and metadata only — never presentation
@@ -326,32 +326,32 @@ optional input and do not violate the trades-only constraint for core metrics.
   timing (`Δ seconds`), qty diff, fee diff. **Unmatched** fills on either side are listed
   explicitly (never silently dropped). This replaces day-level "date" matching — alignment
   is at fill-timestamp granularity.
-- **Stateless:** `POST /comparisons` returns the full result; nothing is persisted and
+- **Stateless:** `POST /v1/comparisons` returns the full result; nothing is persisted and
   there is no comparison history.
 
 ## 8. API
 
 ### Auth (public / JWT)
 ```
-POST /auth/register          {email, password}        → 201 {user}  (status=pending)
-POST /auth/login             {email, password}        → {access_token, refresh_token}
+POST /v1/auth/register       {email, password}        → 201 {user}  (status=pending)
+POST /v1/auth/login          {email, password}        → {access_token, refresh_token}
                                                           (403 if pending/rejected)
-POST /auth/refresh           {refresh_token}          → {access_token}
-GET  /auth/me                (JWT)                     → {user}
+POST /v1/auth/refresh        {refresh_token}          → {access_token}
+GET  /v1/auth/me             (JWT)                     → {user}
 ```
 
 ### API key management (JWT only)
 ```
-POST   /api-keys             (JWT) {name}   → 201 {id, name, key}   # full key shown ONCE
-GET    /api-keys             (JWT)          → [{id, name, prefix, last_used_at, created_at}]
-DELETE /api-keys/{id}        (JWT)          → 204                    # revoke
+POST   /v1/api-keys          (JWT) {name}   → 201 {id, name, key}   # full key shown ONCE
+GET    /v1/api-keys          (JWT)          → [{id, name, prefix, last_used_at, created_at}]
+DELETE /v1/api-keys/{id}     (JWT)          → 204                    # revoke
 ```
 
 ### Admin (JWT, admin role only)
 ```
-GET   /admin/users                  → [{id, email, status, role, created_at}]
-POST  /admin/users/{id}/approve     → 204
-POST  /admin/users/{id}/reject      → 204
+GET   /v1/admin/users                  → [{id, email, status, role, created_at}]
+POST  /v1/admin/users/{id}/approve     → 204
+POST  /v1/admin/users/{id}/reject      → 204
 ```
 
 ### Ingestion (API key; also accepts JWT for frontend edits)
@@ -360,7 +360,7 @@ The posting model is **incremental append**: create a series once, then append f
 batches and fund movements over time.
 
 ```
-POST /series                          (API key)
+POST /v1/series                        (API key)
   body: { name, tag, notes?, base_currency, session_tz,
           strategies?: [{name}],
           instruments?: [{symbol, asset_class, currency, multiplier, tick_size?, lot_size?}],
@@ -368,19 +368,19 @@ POST /series                          (API key)
                              from_strategy?, to_strategy?, amount}] }
   → 201 { series_id }
 
-POST /series/{id}/instruments         (API key)   # declare/correct instrument specs
+POST /v1/series/{id}/instruments       (API key)   # declare/correct instrument specs
   body: [ {symbol, asset_class, currency, multiplier, tick_size?, lot_size?}, ... ]
   → 201 { upserted: n }
 
-POST /series/{id}/fx-rates            (API key)   # rates: instrument ccy → base ccy
+POST /v1/series/{id}/fx-rates          (API key)   # rates: instrument ccy → base ccy
   body: [ {ccy_from, ccy_to, ts, rate}, ... ]
   → 201 { ingested: n }
 
-POST /series/{id}/benchmark           (API key)   # optional benchmark return series
+POST /v1/series/{id}/benchmark         (API key)   # optional benchmark return series
   body: { name, returns: [ {ts, return_pct}, ... ] }
   → 201 { ingested: n }
 
-POST /series/{id}/fills:batch         (API key)   # batch append method
+POST /v1/series/{id}/fills:batch       (API key)   # batch append method
   body: { fills: [ { client_fill_id, strategy, symbol, side, qty, price, ts,
                      commission?, exchange_fee?, regulatory_fee?, financing_fee?,
                      position_effect?, signal_id? }, ... ] }   # ≤ 10,000 per request
@@ -388,11 +388,11 @@ POST /series/{id}/fills:batch         (API key)   # batch append method
           errors: [ { client_fill_id, row, reason }, ... ] }
   → 413 if batch exceeds 10,000 fills
 
-POST /series/{id}/fund-movements      (API key)
+POST /v1/series/{id}/fund-movements    (API key)
   body: [ { ts, currency, from_bucket, to_bucket, from_strategy?, to_strategy?, amount }, ... ]
   → 201 { ingested: n }
 
-POST /series/{id}/fills:void          (API key)   # soft-delete erroneous fills
+POST /v1/series/{id}/fills:void        (API key)   # soft-delete erroneous fills
   body: { client_fill_ids: [...] }
   → 200 { voided: n }
 ```
@@ -460,7 +460,7 @@ contract):
 
 ### Comparison (JWT, stateless)
 ```
-POST /comparisons
+POST /v1/comparisons
   body: { series_ids:[...], baseline_series_id?, date_from?, date_to?,
           trade_view?: "lot"|"position",
           per_trade_page?: int, per_trade_page_size?: int }

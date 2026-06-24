@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 
-import ApiKeysPage from "./ApiKeysPage";
+import SettingsPage from "./SettingsPage";
 import { server } from "../test/setup";
 import { ToastProvider } from "../components/Toast";
 import { renderWithProviders } from "../lib/test-utils";
@@ -11,22 +11,22 @@ import { renderWithProviders } from "../lib/test-utils";
 function renderPage() {
   return renderWithProviders(
     <ToastProvider>
-      <ApiKeysPage />
+      <SettingsPage />
     </ToastProvider>,
     { route: "/settings" },
   );
 }
 
-describe("ApiKeysPage", () => {
+describe("SettingsPage", () => {
   it("renders an empty state when there are no keys", async () => {
-    server.use(http.get("/api/api-keys", () => HttpResponse.json([])));
+    server.use(http.get("/liveboard/api/v1/api-keys", () => HttpResponse.json([])));
     renderPage();
     expect(await screen.findByText(/no api keys yet/i)).toBeInTheDocument();
   });
 
   it("lists keys with name, prefix, last used and created (J2)", async () => {
     server.use(
-      http.get("/api/api-keys", () =>
+      http.get("/liveboard/api/v1/api-keys", () =>
         HttpResponse.json([
           { id: 1, name: "ingest-bot", prefix: "lb_8f3a", last_used_at: "2026-06-18T14:02:00Z", created_at: "2026-06-01T00:00:00Z" },
         ]),
@@ -43,8 +43,8 @@ describe("ApiKeysPage", () => {
       { id: 1, name: "ingest-bot", prefix: "lb_8f3a", last_used_at: null, created_at: "2026-06-01T00:00:00Z" },
     ];
     server.use(
-      http.get("/api/api-keys", () => HttpResponse.json(listed)),
-      http.delete("/api/api-keys/1", () => {
+      http.get("/liveboard/api/v1/api-keys", () => HttpResponse.json(listed)),
+      http.delete("/liveboard/api/v1/api-keys/1", () => {
         listed = [];
         return new HttpResponse(null, { status: 204 });
       }),

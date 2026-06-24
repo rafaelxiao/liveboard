@@ -22,6 +22,13 @@
     "netPnl": "Net PnL",
     "maxDD": "Max DD"
   },
+  "executionQuality": "Execution Quality",
+  "strategy": "Strategy",
+  "symbol": "Symbol",
+  "dailyGroups": "Daily Groups",
+  "deltaBps": "Δ bps",
+  "estimatedImpact": "Est. Impact",
+  "executionQualityNote": "Daily VWAP comparison: {{baseline}} (baseline) vs {{other}}. +Δ bps = {{other}} paid more on buys / received less on sells. Impact = Σ(Δ bps × notional / 10000).",
   "metrics": {
     "Net PnL": "Net PnL",
     "Gross PnL": "Gross PnL",

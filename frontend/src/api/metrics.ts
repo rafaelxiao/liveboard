@@ -9,5 +9,6 @@ export function getMetrics(params: DashboardParams): Promise<MetricsEnvelope> {
   if (params.symbol) qs.set("symbol", params.symbol);
   if (params.from) qs.set("date_from", params.from);
   if (params.to) qs.set("date_to", params.to);
+  if (params.trade_grouping) qs.set("trade_grouping", params.trade_grouping);
   return apiFetch<MetricsEnvelope>(`/series/${params.series}/metrics?${qs.toString()}`);
 }
