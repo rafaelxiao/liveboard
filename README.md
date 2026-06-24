@@ -166,11 +166,15 @@ cd frontend && npm run build   # nginx picks up dist/ automatically
 
 ## Pushing from mainland China
 
-GitHub is intermittently blocked. Embed your token in the remote URL:
+GitHub is intermittently blocked. Use the retry script:
+```bash
+bash scripts/push.sh "commit message"   # commit + push
+bash scripts/push.sh                     # push only
+```
+First-time setup — embed your token (one-time):
 ```bash
 git remote set-url origin https://TOKEN@github.com/rafaelxiao/liveboard.git
 ```
-Then keep retrying — it connects on some attempts.
 
 ## License
 
