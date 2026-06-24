@@ -314,6 +314,8 @@ export interface ComparisonResponse {
     groups: ExecutionDeltaGroup[];
   };
   pnl_breakdown?: {
+    first_name: string;
+    second_name: string;
     rows: PnlBreakdownRow[];
   };
 }
@@ -321,8 +323,8 @@ export interface ComparisonResponse {
 export interface PnlBreakdownRow {
   month: string;
   name_key: string;
-  live_pnl: string;
-  sim_pnl: string;
+  first_pnl: string;
+  second_pnl: string;
   total_delta: string;
   shared_delta: string;
   date_delta: string;

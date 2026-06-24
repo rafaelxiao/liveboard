@@ -266,7 +266,7 @@ export default function ComparisonPage() {
           {data.pnl_breakdown && data.pnl_breakdown.rows.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-secondary mb-2">
-                PnL Breakdown (Live - Sim)
+                PnL Breakdown ({data.pnl_breakdown.first_name} - {data.pnl_breakdown.second_name})
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -276,8 +276,8 @@ export default function ComparisonPage() {
                         <th className="text-left py-2 px-3 font-medium text-secondary">Strategy</th>
                       )}
                       <th className="text-left py-2 px-3 font-medium text-secondary">Month</th>
-                      <th className="text-right py-2 px-3 font-medium text-secondary">Live PnL</th>
-                      <th className="text-right py-2 px-3 font-medium text-secondary">Sim PnL</th>
+                      <th className="text-right py-2 px-3 font-medium text-secondary">{data.pnl_breakdown.first_name} PnL</th>
+                      <th className="text-right py-2 px-3 font-medium text-secondary">{data.pnl_breakdown.second_name} PnL</th>
                       <th className="text-right py-2 px-3 font-medium text-secondary">Total Δ</th>
                       <th className="text-right py-2 px-3 font-medium text-secondary">Shared Δ</th>
                       <th className="text-right py-2 px-3 font-medium text-secondary">Date Δ</th>
@@ -295,10 +295,10 @@ export default function ComparisonPage() {
                           )}
                           <td className="py-1.5 px-3 text-secondary">{row.month}</td>
                           <td className="py-1.5 px-3 text-right font-mono text-secondary">
-                            {formatCurrency(row.live_pnl, baseCurrency)}
+                            {formatCurrency(row.first_pnl, baseCurrency)}
                           </td>
                           <td className="py-1.5 px-3 text-right font-mono text-secondary">
-                            {formatCurrency(row.sim_pnl, baseCurrency)}
+                            {formatCurrency(row.second_pnl, baseCurrency)}
                           </td>
                           <td className={`py-1.5 px-3 text-right font-mono ${td >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>
                             {formatCurrency(row.total_delta, baseCurrency)}
@@ -319,8 +319,8 @@ export default function ComparisonPage() {
                         TOTAL
                       </td>
                       {(() => {
-                        const tl = data.pnl_breakdown.rows.reduce((s, r) => s + parseFloat(r.live_pnl), 0);
-                        const ts = data.pnl_breakdown.rows.reduce((s, r) => s + parseFloat(r.sim_pnl), 0);
+                        const tl = data.pnl_breakdown.rows.reduce((s, r) => s + parseFloat(r.first_pnl), 0);
+                        const ts = data.pnl_breakdown.rows.reduce((s, r) => s + parseFloat(r.second_pnl), 0);
                         const tt = data.pnl_breakdown.rows.reduce((s, r) => s + parseFloat(r.total_delta), 0);
                         const tsh = data.pnl_breakdown.rows.reduce((s, r) => s + parseFloat(r.shared_delta), 0);
                         const td = data.pnl_breakdown.rows.reduce((s, r) => s + parseFloat(r.date_delta), 0);

@@ -121,8 +121,8 @@ class PnlBreakdownRow(BaseModel):
     """One row in the PnL breakdown table."""
     month: str
     name_key: str
-    live_pnl: str
-    sim_pnl: str
+    first_pnl: str
+    second_pnl: str
     total_delta: str
     shared_delta: str
     date_delta: str
@@ -130,6 +130,8 @@ class PnlBreakdownRow(BaseModel):
 
 class PnlBreakdownBlock(BaseModel):
     """PnL difference broken down by shared vs different dates, per strategy per month."""
+    first_name: str
+    second_name: str
     rows: list[PnlBreakdownRow]
 
 

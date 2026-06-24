@@ -514,7 +514,7 @@ def _pnl_breakdown_aggregated(
     matched_keys: set[str],
     date_from: datetime | None,
     date_to: datetime | None,
-) -> list[PnlBreakdownRow]:
+) -> "PnlBreakdownBlock":
     """Aggregate all strategies together — one row per month."""
     from collections import defaultdict
 
@@ -523,8 +523,9 @@ def _pnl_breakdown_aggregated(
     from app.services.metrics import trade_date
 
     # Load all fills across all matched strategies
-    live_s = next((s for s in cohort if s.tag == "live"), cohort[0])
-    sim_s = next((s for s in cohort if s.tag == "sim"), cohort[1] if len(cohort) > 1 else cohort[0])
+    # Use cohort order: first selected = first, second selected = second
+    first_s = cohort[0]
+    second_s = cohort[1] if len(cohort) > 1 else cohort[0]
 
     def load_fills(series):
         all_f = []
@@ -541,47 +542,51 @@ def _pnl_breakdown_aggregated(
             all_f.extend(fills)
         return all_f
 
-    l_fills = load_fills(live_s)
-    s_fills = load_fills(sim_s)
+    f1_fills = load_fills(first_s)
+    f2_fills = load_fills(second_s)
 
-    inst_l = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == live_s.id).all()}
-    inst_s2 = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == sim_s.id).all()}
+    inst_f1 = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == first_s.id).all()}
+    inst_f2 = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == second_s.id).all()}
 
-    live_days = {f.ts.date() for f in l_fills}
-    sim_days = {f.ts.date() for f in s_fills}
-    shared = live_days & sim_days
-    l_only = live_days - sim_days
-    s_only = sim_days - live_days
+    f1_days = {f.ts.date() for f in f1_fills}
+    f2_days = {f.ts.date() for f in f2_fills}
+    shared = f1_days & f2_days
+    f1_only = f1_days - f2_days
+    f2_only = f2_days - f1_days
 
-    pnl_l = defaultdict(Decimal)
-    pnl_s = defaultdict(Decimal)
-    for rt in pair_fills(l_fills, inst_l):
-        pnl_l[(rt.close_ts.strftime("%Y-%m"), rt.close_ts.date())] += rt.net_pnl
-    for rt in pair_fills(s_fills, inst_s2):
-        pnl_s[(rt.close_ts.strftime("%Y-%m"), rt.close_ts.date())] += rt.net_pnl
+    pnl_f1 = defaultdict(Decimal)
+    pnl_f2 = defaultdict(Decimal)
+    for rt in pair_fills(f1_fills, inst_f1):
+        pnl_f1[(rt.close_ts.strftime("%Y-%m"), rt.close_ts.date())] += rt.net_pnl
+    for rt in pair_fills(f2_fills, inst_f2):
+        pnl_f2[(rt.close_ts.strftime("%Y-%m"), rt.close_ts.date())] += rt.net_pnl
 
-    monthly: dict[str, dict] = defaultdict(lambda: {"total_l": Decimal("0"), "total_s": Decimal("0"), "shared_l": Decimal("0"), "shared_s": Decimal("0"), "lo": Decimal("0"), "so": Decimal("0")})
-    for (m, d), v in pnl_l.items():
-        monthly[m]["total_l"] += v
-        if d in shared: monthly[m]["shared_l"] += v
-        elif d in l_only: monthly[m]["lo"] += v
-    for (m, d), v in pnl_s.items():
-        monthly[m]["total_s"] += v
-        if d in shared: monthly[m]["shared_s"] += v
-        elif d in s_only: monthly[m]["so"] += v
+    monthly: dict[str, dict] = defaultdict(lambda: {"total_1": Decimal("0"), "total_2": Decimal("0"), "shared_1": Decimal("0"), "shared_2": Decimal("0"), "o1": Decimal("0"), "o2": Decimal("0")})
+    for (m, d), v in pnl_f1.items():
+        monthly[m]["total_1"] += v
+        if d in shared: monthly[m]["shared_1"] += v
+        elif d in f1_only: monthly[m]["o1"] += v
+    for (m, d), v in pnl_f2.items():
+        monthly[m]["total_2"] += v
+        if d in shared: monthly[m]["shared_2"] += v
+        elif d in f2_only: monthly[m]["o2"] += v
 
     rows = []
     for m in sorted(monthly.keys()):
         d = monthly[m]
         rows.append(PnlBreakdownRow(
             month=m, name_key="",
-            live_pnl=str(d["total_l"].quantize(Decimal("0.01"))),
-            sim_pnl=str(d["total_s"].quantize(Decimal("0.01"))),
-            total_delta=str((d["total_l"] - d["total_s"]).quantize(Decimal("0.01"))),
-            shared_delta=str((d["shared_l"] - d["shared_s"]).quantize(Decimal("0.01"))),
-            date_delta=str((d["lo"] - d["so"]).quantize(Decimal("0.01"))),
+            first_pnl=str(d["total_1"].quantize(Decimal("0.01"))),
+            second_pnl=str(d["total_2"].quantize(Decimal("0.01"))),
+            total_delta=str((d["total_1"] - d["total_2"]).quantize(Decimal("0.01"))),
+            shared_delta=str((d["shared_1"] - d["shared_2"]).quantize(Decimal("0.01"))),
+            date_delta=str((d["o1"] - d["o2"]).quantize(Decimal("0.01"))),
         ))
-    return rows
+    return PnlBreakdownBlock(
+        first_name=cohort[0].name,
+        second_name=cohort[1].name if len(cohort) > 1 else "",
+        rows=rows,
+    )
 
 
 def _pnl_breakdown(
@@ -608,10 +613,9 @@ def _pnl_breakdown(
 
     if not group_by_strategy:
         # Aggregate all strategies together
-        rows = _pnl_breakdown_aggregated(
+        return _pnl_breakdown_aggregated(
             session, cohort, matched_keys, date_from, date_to
         )
-        return PnlBreakdownBlock(rows=rows)
 
     for nk in sorted(matched_keys):
         # Load fills for this strategy in both series
@@ -637,61 +641,65 @@ def _pnl_breakdown(
         if len(fills_by_series) < 2:
             continue
 
-        # Always use live as reference, sim as comparison
-        live_s = next((s for s in cohort if s.tag == "live"), cohort[0])
-        sim_s = next((s for s in cohort if s.tag == "sim"), cohort[1] if len(cohort) > 1 else cohort[0])
-        if live_s.id == sim_s.id:
+        # Use cohort order: first selected minus second selected
+        first_s = cohort[0]
+        second_s = cohort[1] if len(cohort) > 1 else cohort[0]
+        if first_s.id == second_s.id:
             continue
-        l_fills = fills_by_series.get(live_s.id, [])
-        s_fills = fills_by_series.get(sim_s.id, [])
-        if not l_fills or not s_fills:
+        f1_fills = fills_by_series.get(first_s.id, [])
+        f2_fills = fills_by_series.get(second_s.id, [])
+        if not f1_fills or not f2_fills:
             continue
 
         # Pair and get daily PnL
         from app.models.instrument import Instrument
 
-        inst_l = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == live_s.id).all()}
-        inst_s2 = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == sim_s.id).all()}
+        inst_f1 = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == first_s.id).all()}
+        inst_f2 = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == second_s.id).all()}
 
-        pnl_l = defaultdict(Decimal)
-        pnl_s2 = defaultdict(Decimal)
-        for rt in pair_fills(l_fills, inst_l):
-            pnl_l[(rt.close_ts.strftime("%Y-%m"), rt.close_ts.date())] += rt.net_pnl
-        for rt in pair_fills(s_fills, inst_s2):
-            pnl_s2[(rt.close_ts.strftime("%Y-%m"), rt.close_ts.date())] += rt.net_pnl
+        pnl_f1 = defaultdict(Decimal)
+        pnl_f2 = defaultdict(Decimal)
+        for rt in pair_fills(f1_fills, inst_f1):
+            pnl_f1[(rt.close_ts.strftime("%Y-%m"), rt.close_ts.date())] += rt.net_pnl
+        for rt in pair_fills(f2_fills, inst_f2):
+            pnl_f2[(rt.close_ts.strftime("%Y-%m"), rt.close_ts.date())] += rt.net_pnl
 
-        shared_days = days_by_series[live_s.id] & days_by_series[sim_s.id]
-        l_only = days_by_series[live_s.id] - days_by_series[sim_s.id]
-        s_only = days_by_series[sim_s.id] - days_by_series[live_s.id]
+        shared_days = days_by_series[first_s.id] & days_by_series[second_s.id]
+        f1_only = days_by_series[first_s.id] - days_by_series[second_s.id]
+        f2_only = days_by_series[second_s.id] - days_by_series[first_s.id]
 
         # Aggregate by month
-        monthly: dict[str, dict] = defaultdict(lambda: {"total_l": Decimal("0"), "total_s": Decimal("0"), "shared_l": Decimal("0"), "shared_s": Decimal("0"), "lo": Decimal("0"), "so": Decimal("0")})
-        for (m, d), v in pnl_l.items():
-            monthly[m]["total_l"] += v
+        monthly: dict[str, dict] = defaultdict(lambda: {"total_1": Decimal("0"), "total_2": Decimal("0"), "shared_1": Decimal("0"), "shared_2": Decimal("0"), "o1": Decimal("0"), "o2": Decimal("0")})
+        for (m, d), v in pnl_f1.items():
+            monthly[m]["total_1"] += v
             if d in shared_days:
-                monthly[m]["shared_l"] += v
-            elif d in l_only:
-                monthly[m]["lo"] += v
-        for (m, d), v in pnl_s2.items():
-            monthly[m]["total_s"] += v
+                monthly[m]["shared_1"] += v
+            elif d in f1_only:
+                monthly[m]["o1"] += v
+        for (m, d), v in pnl_f2.items():
+            monthly[m]["total_2"] += v
             if d in shared_days:
-                monthly[m]["shared_s"] += v
-            elif d in s_only:
-                monthly[m]["so"] += v
+                monthly[m]["shared_2"] += v
+            elif d in f2_only:
+                monthly[m]["o2"] += v
 
         for m in sorted(monthly.keys()):
             d = monthly[m]
             rows.append(PnlBreakdownRow(
                 month=m,
                 name_key=nk,
-                live_pnl=str(d["total_l"].quantize(Decimal("0.01"))),
-                sim_pnl=str(d["total_s"].quantize(Decimal("0.01"))),
-                total_delta=str((d["total_l"] - d["total_s"]).quantize(Decimal("0.01"))),
-                shared_delta=str((d["shared_l"] - d["shared_s"]).quantize(Decimal("0.01"))),
-                date_delta=str((d["lo"] - d["so"]).quantize(Decimal("0.01"))),
+                first_pnl=str(d["total_1"].quantize(Decimal("0.01"))),
+                second_pnl=str(d["total_2"].quantize(Decimal("0.01"))),
+                total_delta=str((d["total_1"] - d["total_2"]).quantize(Decimal("0.01"))),
+                shared_delta=str((d["shared_1"] - d["shared_2"]).quantize(Decimal("0.01"))),
+                date_delta=str((d["o1"] - d["o2"]).quantize(Decimal("0.01"))),
             ))
 
-    return PnlBreakdownBlock(rows=rows)
+    return PnlBreakdownBlock(
+        first_name=cohort[0].name if cohort else "",
+        second_name=cohort[1].name if len(cohort) > 1 else "",
+        rows=rows,
+    )
 
 
 # ---------------------------------------------------------------------------
