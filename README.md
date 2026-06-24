@@ -164,6 +164,14 @@ After deploying, update the frontend by rebuilding:
 cd frontend && npm run build   # nginx picks up dist/ automatically
 ```
 
+## Pushing from mainland China
+
+GitHub is intermittently blocked. Embed your token in the remote URL:
+```bash
+git remote set-url origin https://TOKEN@github.com/rafaelxiao/liveboard.git
+```
+Then keep retrying — it connects on some attempts.
+
 ## License
 
 MIT — see [LICENSE](LICENSE)
