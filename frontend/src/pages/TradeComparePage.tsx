@@ -285,9 +285,10 @@ export default function TradeComparePage() {
       }
     }
 
+    const lineColor = isDark ? "rgba(156,163,175,0.5)" : "rgba(107,114,128,0.4)";
     const markLines = pairLines.map((pl) => ({
       coords: pl.coords,
-      lineStyle: { color: "rgba(156,163,175,0.3)", type: "dashed" as const, width: 1 },
+      lineStyle: { color: lineColor, type: "dashed" as const, width: 1.5 },
       symbol: "none",
     }));
 
