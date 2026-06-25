@@ -285,12 +285,14 @@ export default function TradeComparePage() {
       }
     }
 
-    const lineColor = isDark ? "rgba(156,163,175,0.5)" : "rgba(107,114,128,0.4)";
-    const markLines = pairLines.map((pl) => ({
-      coords: pl.coords,
-      lineStyle: { color: lineColor, type: "dashed" as const, width: 1.5 },
-      symbol: "none",
-    }));
+    // Build line segments for paired buy→sell links
+    const lineData: ([number, number] | null)[] = [];
+    for (const pl of pairLines) {
+      lineData.push(pl.coords[0]);
+      lineData.push(pl.coords[1]);
+      lineData.push(null); // break between pairs
+    }
+    const lineColor = isDark ? "rgba(156,163,175,0.45)" : "rgba(107,114,128,0.35)";
 
     return {
       tooltip: {
@@ -332,13 +334,24 @@ export default function TradeComparePage() {
       },
       series: [
         {
+          name: "pair-link",
+          type: "line",
+          data: lineData,
+          symbol: "none",
+          lineStyle: { color: lineColor, type: "dashed", width: 1 },
+          silent: true,
+          showSymbol: false,
+          legendHoverLink: false,
+          z: 1,
+        },
+        {
           name: `${name1} ${t("buy")}`,
           type: "scatter",
           data: simBuys,
           symbol: "circle",
           symbolSize: 10,
           itemStyle: { color: simColor },
-          markLine: { silent: true, symbol: "none", data: markLines },
+          z: 2,
         },
         {
           name: `${name1} ${t("sell")}`,
@@ -347,6 +360,7 @@ export default function TradeComparePage() {
           symbol: "diamond",
           symbolSize: 10,
           itemStyle: { color: simColor },
+          z: 2,
         },
         {
           name: `${name2} ${t("buy")}`,
@@ -363,11 +377,12 @@ export default function TradeComparePage() {
           symbol: "diamond",
           symbolSize: 10,
           itemStyle: { color: liveColor },
+          z: 2,
         },
       ],
       backgroundColor: "transparent",
     };
-  }, [selectedDate, fillsByDate1, fillsByDate2, name1, name2, t, tooltipBg, tooltipBorder, tooltipText, axisColor, axisLineColor, gridColor, textColor, simColor, liveColor]);
+  }, [selectedDate, fillsByDate1, fillsByDate2, name1, name2, t, tooltipBg, tooltipBorder, tooltipText, axisColor, axisLineColor, gridColor, textColor, simColor, liveColor, isDark]);
 
   // --- Render ---
   if (!series1 || !series2 || !strategy) {
