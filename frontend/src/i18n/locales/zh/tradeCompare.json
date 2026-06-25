@@ -1,7 +1,5 @@
 {
   "title": "逐笔成交对比",
-  "intraday": "日内",
-  "multiDay": "多日",
   "loading": "加载中...",
   "fills": "笔成交",
   "tradingDays": "个交易日",

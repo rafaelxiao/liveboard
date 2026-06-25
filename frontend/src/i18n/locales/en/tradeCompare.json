@@ -1,7 +1,5 @@
 {
   "title": "Trade Comparison",
-  "intraday": "Intraday",
-  "multiDay": "Multi-Day",
   "loading": "Loading...",
   "fills": "fills",
   "tradingDays": "trading days",
@@ -14,7 +12,5 @@
   "prev": "◀ Prev",
   "next": "Next ▶",
   "buy": "Buy",
-  "sell": "Sell",
-  "from": "From",
-  "to": "To"
+  "sell": "Sell"
 }
