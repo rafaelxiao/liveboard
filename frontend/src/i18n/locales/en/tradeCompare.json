@@ -14,5 +14,7 @@
   "prev": "◀ Prev",
   "next": "Next ▶",
   "buy": "Buy",
-  "sell": "Sell"
+  "sell": "Sell",
+  "from": "From",
+  "to": "To"
 }
