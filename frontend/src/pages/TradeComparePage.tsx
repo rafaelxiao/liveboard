@@ -67,8 +67,8 @@ export default function TradeComparePage() {
     if (!series1 || !series2 || !strategy) return;
     setLoading(true);
     Promise.all([
-      apiFetch<FillOut[]>(`/v1/series/${series1}/fills?strategy_name=${strategy}&limit=5000`),
-      apiFetch<FillOut[]>(`/v1/series/${series2}/fills?strategy_name=${strategy}&limit=5000`),
+      apiFetch<FillOut[]>(`/series/${series1}/fills?strategy_name=${strategy}&limit=5000`),
+      apiFetch<FillOut[]>(`/series/${series2}/fills?strategy_name=${strategy}&limit=5000`),
     ])
       .then(([r1, r2]) => {
         setFills1(r1);
@@ -114,18 +114,33 @@ export default function TradeComparePage() {
     };
   }, [fills1, fills2]);
 
-  // Calendar state
-  const [calYear, setCalYear] = useState(() => new Date().getFullYear());
-  const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+  // Calendar state — start at the latest data year/month
+  const [calYear, setCalYear] = useState(0);
+  const [calMonth, setCalMonth] = useState(0);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"intraday" | "multiday">("intraday");
 
-  // Set initial selected date
+  // Set initial selected date and calendar month
   useEffect(() => {
-    if (!selectedDate && allDates.length > 0) {
-      setSelectedDate(allDates[allDates.length - 1]);
+    if (allDates.length > 0) {
+      if (!selectedDate) {
+        const latest = allDates[allDates.length - 1];
+        setSelectedDate(latest);
+        const d = new Date(latest);
+        setCalYear(d.getFullYear());
+        setCalMonth(d.getMonth());
+      }
     }
   }, [allDates, selectedDate]);
+
+  // When selected date changes, auto-scroll calendar month
+  useEffect(() => {
+    if (selectedDate) {
+      const d = new Date(selectedDate);
+      setCalYear(d.getFullYear());
+      setCalMonth(d.getMonth());
+    }
+  }, [selectedDate]);
 
   const { d1: fillsByDate1, d2: fillsByDate2 } = datesByKind;
   const todayStr = ymd(new Date());
