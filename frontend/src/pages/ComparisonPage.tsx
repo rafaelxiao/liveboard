@@ -341,6 +341,16 @@ export default function ComparisonPage() {
               <p className="mt-1 text-[10px] text-muted">
                 Shared Δ = difference on days both strategies traded. Date Δ = difference from days only one traded.
               </p>
+              {level === "strategy" && strategyKeys.length === 2 && strategyKeys[0].name_key === strategyKeys[1].name_key && (
+                <a
+                  href={`${import.meta.env.BASE_URL}trade-compare?series_1=${strategyKeys[0].series_id}&series_2=${strategyKeys[1].series_id}&strategy=${strategyKeys[0].name_key}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-2 text-xs text-accent hover:underline"
+                >
+                  🔍 View trade-by-trade chart →
+                </a>
+              )}
             </div>
           )}
 
