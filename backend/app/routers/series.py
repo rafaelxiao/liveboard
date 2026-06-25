@@ -6,7 +6,7 @@ from app.core.deps import get_api_user, get_current_user, get_user
 from app.db import get_db
 from app.models.series import Series
 from app.models.user import User
-from app.schemas.series import SeriesCreateIn, SeriesDetailOut, SeriesOut
+from app.schemas.series import FillOut, SeriesCreateIn, SeriesDetailOut, SeriesOut
 from app.schemas.validation import ValidationConfigIn, ValidationConfigOut
 from app.services.series import (
     SeriesNotFound,
@@ -88,3 +88,71 @@ def update_validation_config(
 
     cfg = resolve_validation_config(series)
     return ValidationConfigOut(**cfg)
+
+
+@router.get("/series/{series_id}/fills")
+def list_fills(
+    series_id: int,
+    strategy_name: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = 1000,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_user),
+) -> list[FillOut]:
+    """List fills for a series, with optional strategy and date filtering."""
+    from sqlalchemy import select
+    from app.models.fill import Fill
+    from app.models.strategy import Strategy
+
+    series = db.get(Series, series_id)
+    if series is None or (series.user_id != user.id and user.role != "admin"):
+        raise HTTPException(status_code=404, detail="series not found")
+
+    # Resolve strategy filter
+    strategy_id = None
+    if strategy_name:
+        st = db.execute(
+            select(Strategy).where(
+                Strategy.series_id == series_id, Strategy.name_key == strategy_name
+            )
+        ).scalar_one_or_none()
+        if st is None:
+            raise HTTPException(status_code=404, detail="strategy not found")
+        strategy_id = st.id
+
+    # Build query
+    stmt = select(Fill).where(Fill.series_id == series_id, Fill.voided_at.is_(None))
+    if strategy_id:
+        stmt = stmt.where(Fill.strategy_id == strategy_id)
+    if date_from:
+        stmt = stmt.where(Fill.ts >= date_from)
+    if date_to:
+        stmt = stmt.where(Fill.ts < date_to)
+    stmt = stmt.order_by(Fill.ts.asc()).offset(offset).limit(limit)
+
+    fills = db.execute(stmt).scalars().all()
+
+    # Load strategy names
+    st_ids = {f.strategy_id for f in fills}
+    strat_names = {}
+    if st_ids:
+        for st in db.execute(select(Strategy).where(Strategy.id.in_(st_ids))).scalars():
+            strat_names[st.id] = st.name_key
+
+    return [
+        FillOut(
+            id=f.id,
+            strategy_name=strat_names.get(f.strategy_id, "unknown"),
+            symbol=f.symbol,
+            side=f.side,
+            qty=str(f.qty),
+            price=str(f.price),
+            commission=str(f.commission),
+            ts=f.ts,
+            client_fill_id=f.client_fill_id,
+            signal_id=f.signal_id,
+        )
+        for f in fills
+    ]

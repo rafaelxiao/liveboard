@@ -294,7 +294,7 @@ def test_account_block_has_one_entry_per_series(db_session, user):
     _add_fill(db_session, a, sa, "ETH", "sell", 1, 110, t2, "a2")
     _add_fill(db_session, b, sb, "ETH", "buy", 1, 100, t, "b1")
     _add_fill(db_session, b, sb, "ETH", "sell", 1, 105, t2, "b2")
-    block = _account_block(db_session, [a, b], None, None, "lot")
+    block = _account_block(db_session, [a, b], None, None, "lot", "day")
     assert [e.series_id for e in block.series] == [a.id, b.id]
     assert "net_pnl" in block.series[0].metrics
     assert "units" in block.series[0].metrics
@@ -338,7 +338,7 @@ def test_strategy_block_matches_shared_name_key(db_session, user):
     _add_fill(db_session, a, sa, "ETH", "sell", 1, 110, t2, "a2")
     _add_fill(db_session, b, sb, "ETH", "buy", 1, 100, t, "b1")
     _add_fill(db_session, b, sb, "ETH", "sell", 1, 105, t2, "b2")
-    block = _strategy_block(db_session, [a, b], None, None, "lot")
+    block = _strategy_block(db_session, [a, b], None, None, "lot", "day")
     assert "momo-eth" in block
     assert block["momo-eth"].matched is True
     assert {e["series_id"] for e in block["momo-eth"].series} == {a.id, b.id}
@@ -357,7 +357,7 @@ def test_strategy_block_unmatched_is_side_by_side(db_session, user):
     _add_fill(db_session, a, sa, "ETH", "sell", 1, 110, t2, "a2")
     _add_fill(db_session, b, sb, "ETH", "buy", 1, 100, t, "b1")
     _add_fill(db_session, b, sb, "ETH", "sell", 1, 105, t2, "b2")
-    block = _strategy_block(db_session, [a, b], None, None, "lot")
+    block = _strategy_block(db_session, [a, b], None, None, "lot", "day")
     assert block["only-in-a"].matched is False
     assert block["only-in-b"].matched is False
     assert {e["series_id"] for e in block["only-in-a"].series} == {a.id}
@@ -390,6 +390,7 @@ def test_symbol_block_matches_symbol_within_matched_strategy(db_session, user):
         date_from=None,
         date_to=None,
         trade_view="lot",
+        trade_grouping="day",
     )
     assert "momo/ETH" in block
     assert "momo/BTC" not in block

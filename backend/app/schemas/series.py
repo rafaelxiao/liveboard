@@ -127,3 +127,17 @@ class SharedSeriesOut(BaseModel):
     metrics: dict | None = None  # compute_metrics envelope
     pnl_color_scheme: str | None = None
     lang: str | None = None
+
+
+class FillOut(BaseModel):
+    """A single fill record."""
+    id: int
+    strategy_name: str
+    symbol: str
+    side: str
+    qty: str
+    price: str
+    commission: str
+    ts: datetime
+    client_fill_id: str
+    signal_id: str | None = None
