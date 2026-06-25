@@ -49,7 +49,8 @@
     "registerInstruments": "Register instruments for a series. Each instrument has a symbol, asset class (future/crypto/fx/equity), multiplier, and currency. Must be posted before fills reference them.",
     "postFxRates": "Post foreign exchange rates for currency conversion. Each entry has ccy_from, ccy_to, a timestamp, and a rate. Required for multi-currency portfolios.",
     "postFundMovements": "Post capital flows: deposits, withdrawals, and inter-strategy transfers. Used to compute capital base and indexed returns.",
-    "postFills": "Post fills in batch — the primary data ingestion endpoint. Each fill has a unique client_fill_id for idempotency, strategy, symbol, side, quantity, price, fees, and a UTC timestamp. Fills are paired with the latest instrument registration for multiplier and currency lookup."
+    "postFills": "Post fills in batch — the primary data ingestion endpoint. Each fill has a unique client_fill_id for idempotency, strategy, symbol, side, quantity, price, fees, and a UTC timestamp. Fills are paired with the latest instrument registration for multiplier and currency lookup.",
+    "getFills": "Query fills for a series with optional strategy, date range, and pagination. Returns individual fill records with timestamps and PnL components."
   },
   "reference": {
     "title": "API Reference",
@@ -85,7 +86,8 @@
     "revokeShare": "Revoke a share link",
     "viewShared": "Public view of a shared series (no auth)",
     "health": "Health check — returns {\"status\":\"ok\"}",
-    "getFundMovements": "List fund movements"
+    "getFundMovements": "List fund movements",
+    "getFills": "List fills for a series — ?strategy_name=&date_from=&date_to=&limit=&offset="
   },
   "footer": {
     "platform": "LiveBoard — Trade Analytics Platform",

@@ -49,7 +49,8 @@
     "registerInstruments": "为序列注册合约。每个合约包含符号、资产类别（future/crypto/fx/equity）、乘数和币种。必须在提交成交数据之前先注册。",
     "postFxRates": "提交外汇汇率用于货币转换。每条记录包含 ccy_from、ccy_to、时间戳和汇率。多币种组合必填。",
     "postFundMovements": "提交资金流水：入金、出金和跨策略转账。用于计算资金基数和指数化收益。",
-    "postFills": "批量提交成交记录 —— 这是主要的数据导入接口。每条成交记录有唯一的 client_fill_id（用于幂等）、策略、符号、方向、数量、价格、费用和 UTC 时间戳。成交记录会与最新的合约注册信息匹配，以查找乘数和币种。"
+    "postFills": "批量提交成交记录 —— 这是主要的数据导入接口。每条成交记录有唯一的 client_fill_id（用于幂等）、策略、符号、方向、数量、价格、费用和 UTC 时间戳。成交记录会与最新的合约注册信息匹配，以查找乘数和币种。",
+    "getFills": "查询成交记录，可按策略、日期范围过滤并分页。返回每笔成交的时间戳和盈亏构成。"
   },
   "reference": {
     "title": "API 参考",
@@ -85,7 +86,8 @@
     "revokeShare": "吊销分享链接",
     "viewShared": "公开查看已分享的序列（无需登录）",
     "health": "健康检查 — 返回 {\"status\":\"ok\"}",
-    "getFundMovements": "查询资金流水"
+    "getFundMovements": "查询资金流水",
+    "getFills": "查询成交记录 — ?strategy_name=&date_from=&date_to=&limit=&offset="
   },
   "footer": {
     "platform": "LiveBoard — 交易分析平台",

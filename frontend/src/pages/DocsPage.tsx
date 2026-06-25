@@ -416,6 +416,17 @@ console.log(\`Inserted: \${inserted}, Updated: \${updated}, Rejected: \${rejecte
           />
         </section>
 
+          <EndpointExample
+            method="GET"
+            path="/series/{series_id}/fills"
+            auth="JWT / API Key"
+            description={t("ingestion.getFills")}
+            curl={`curl "${BASE}/series/1/fills?strategy_name=vwap_intra_day_2&date_from=2026-05-01&limit=10" \\
+  -H "${HEADER}"`}
+            python={`import requests\n\nresp = requests.get(\n    f"${BASE}/series/1/fills",\n    headers=HEADERS,\n    params={\"strategy_name\": \"vwap_intra_day_2\", \"date_from\": \"2026-05-01\", \"limit\": 10},\n)\nfills = resp.json()\nfor f in fills:\n    print(f\"{f['ts']} {f['side']} {f['qty']} @ {f['price']}\")`}
+            javascript={`const resp = await fetch(\n  \`${BASE}/series/1/fills?strategy_name=vwap_intra_day_2&date_from=2026-05-01&limit=10\`,\n  { headers: DEFAULT_HEADERS }\n);\nconst fills = await resp.json();\nfills.forEach(f => console.log(\`\${f.ts} \${f.side} \${f.qty} @ \${f.price}\`));`}
+          />
+
         {/* Reference */}
         <section id="reference" className="mb-12">
           <h2 className="mb-6 text-xl font-semibold text-primary font-mono">{t("reference.title")}</h2>
@@ -436,6 +447,7 @@ console.log(\`Inserted: \${inserted}, Updated: \${updated}, Rejected: \${rejecte
                   ["GET", "/v1/series", "JWT / Key", t("endpoints.listSeries")],
                   ["GET", "/v1/series/{id}", "JWT / Key", t("endpoints.getSeries")],
                   ["GET", "/v1/series/{id}/validation-config", "JWT / Key", t("endpoints.getValidationConfig")],
+                  ["GET", "/v1/series/{id}/fills", "JWT / Key", t("endpoints.getFills")],
                   ["PATCH", "/v1/series/{id}/validation-config", "JWT / Key", t("endpoints.updateValidationConfig")],
                   ["POST", "/v1/series/{id}/instruments", "API Key", t("endpoints.registerInstruments")],
                   ["POST", "/v1/series/{id}/fx-rates", "API Key", t("endpoints.postFxRates")],
