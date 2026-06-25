@@ -329,3 +329,16 @@ export interface PnlBreakdownRow {
   shared_delta: string;
   date_delta: string;
 }
+
+export interface FillOut {
+  id: number;
+  strategy_name: string;
+  symbol: string;
+  side: string;
+  qty: string;
+  price: string;
+  commission: string;
+  ts: string;
+  client_fill_id: string;
+  signal_id: string | null;
+}
