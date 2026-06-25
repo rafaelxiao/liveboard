@@ -50,5 +50,6 @@
     "Largest Loss": "Largest Loss",
     "Trades": "Trades",
     "Avg Holding": "Avg Holding"
-  }
+  },
+  "tradeChart": "Trade-by-trade chart"
 }

@@ -50,5 +50,6 @@
     "Largest Loss": "最大亏损",
     "Trades": "交易笔数",
     "Avg Holding": "平均持仓时长"
-  }
+  },
+  "tradeChart": "逐笔成交对比图"
 }

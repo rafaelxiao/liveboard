@@ -1,0 +1,18 @@
+{
+  "title": "Trade Comparison",
+  "intraday": "Intraday",
+  "multiDay": "Multi-Day",
+  "loading": "Loading...",
+  "fills": "fills",
+  "tradingDays": "trading days",
+  "price": "Price",
+  "pnl": "PnL",
+  "bothTraded": "Both traded",
+  "simOnly": "{{name}} only",
+  "liveOnly": "{{name}} only",
+  "delta": "Δ",
+  "prev": "◀ Prev",
+  "next": "Next ▶",
+  "buy": "Buy",
+  "sell": "Sell"
+}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import ReactEChartsCore from "echarts-for-react/lib/core";
 import * as echarts from "echarts/core";
 import { ScatterChart, LineChart } from "echarts/charts";
@@ -47,6 +48,7 @@ function fmtPnl(v: number): string {
 // ---------------------------------------------------------------------------
 
 export default function TradeComparePage() {
+  const { t } = useTranslation("tradeCompare");
   const [searchParams] = useSearchParams();
   const series1 = Number(searchParams.get("series_1") || "0");
   const series2 = Number(searchParams.get("series_2") || "0");
@@ -287,7 +289,7 @@ export default function TradeComparePage() {
         textStyle: { color: "var(--color-primary, #f3f4f6)" },
       },
       legend: {
-        data: [`${name1} Buy`, `${name1} Sell`, `${name2} Buy`, `${name2} Sell`],
+        data: [`${name1} ${t("buy")}`, `${name1} ${t("sell")}`, `${name2} ${t("buy")}`, `${name2} ${t("sell")}`],
         textStyle: { color: "var(--color-secondary, #9ca3af)" },
         top: 0,
       },
@@ -302,7 +304,8 @@ export default function TradeComparePage() {
       },
       yAxis: {
         type: "value",
-        name: "Price",
+        name: t("price"),
+        scale: true,
         nameTextStyle: { color: "var(--color-secondary, #9ca3af)" },
         axisLabel: { color: "var(--color-secondary, #9ca3af)" },
         axisLine: { lineStyle: { color: "var(--color-border, #374151)" } },
@@ -310,7 +313,7 @@ export default function TradeComparePage() {
       },
       series: [
         {
-          name: `${name1} Buy`,
+          name: `${name1} ${t("buy")}`,
           type: "scatter",
           data: simBuys,
           symbol: "rect",
@@ -319,7 +322,7 @@ export default function TradeComparePage() {
           markLine: { silent: true, symbol: "none", data: markLines },
         },
         {
-          name: `${name1} Sell`,
+          name: `${name1} ${t("sell")}`,
           type: "scatter",
           data: simSells,
           symbol: "triangle",
@@ -328,7 +331,7 @@ export default function TradeComparePage() {
           itemStyle: { color: "#4fc3f7" },
         },
         {
-          name: `${name2} Buy`,
+          name: `${name2} ${t("buy")}`,
           type: "scatter",
           data: liveBuys,
           symbol: "rect",
@@ -336,7 +339,7 @@ export default function TradeComparePage() {
           itemStyle: { color: "#ff8a65" },
         },
         {
-          name: `${name2} Sell`,
+          name: `${name2} ${t("sell")}`,
           type: "scatter",
           data: liveSells,
           symbol: "triangle",
@@ -386,7 +389,7 @@ export default function TradeComparePage() {
         textStyle: { color: "var(--color-primary, #f3f4f6)" },
       },
       legend: {
-        data: [`${name1} PnL`, `${name2} PnL`],
+        data: [`${name1} ${t("pnl")}`, `${name2} ${t("pnl")}`],
         textStyle: { color: "var(--color-secondary, #9ca3af)" },
         top: 0,
       },
@@ -398,20 +401,21 @@ export default function TradeComparePage() {
       },
       yAxis: {
         type: "value",
-        name: "PnL",
+        name: t("pnl"),
+        scale: true,
         nameTextStyle: { color: "var(--color-secondary, #9ca3af)" },
         axisLabel: { color: "var(--color-secondary, #9ca3af)" },
         splitLine: { lineStyle: { color: "var(--color-border-subtle, #1f2937)" } },
       },
       series: [
         {
-          name: `${name1} PnL`,
+          name: `${name1} ${t("pnl")}`,
           type: "bar",
           data: pnlByDate1,
           itemStyle: { color: "#4fc3f7" },
         },
         {
-          name: `${name2} PnL`,
+          name: `${name2} ${t("pnl")}`,
           type: "bar",
           data: pnlByDate2,
           itemStyle: { color: "#ff8a65" },
@@ -470,7 +474,7 @@ export default function TradeComparePage() {
             {strategy} — {name1} vs {name2}
           </h2>
           <p className="text-xs text-secondary mt-0.5">
-            {fills1.length + fills2.length} fills · {allDates.length} trading days
+            {fills1.length + fills2.length} {t("fills")} · {allDates.length} {t("tradingDays")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -478,19 +482,19 @@ export default function TradeComparePage() {
             onClick={() => setViewMode("intraday")}
             className={`px-3 py-1 text-xs rounded ${viewMode === "intraday" ? "bg-primary-500 text-white" : "bg-surface-2 text-secondary"}`}
           >
-            Intraday
+            {t("intraday")}
           </button>
           <button
             onClick={() => setViewMode("multiday")}
             className={`px-3 py-1 text-xs rounded ${viewMode === "multiday" ? "bg-primary-500 text-white" : "bg-surface-2 text-secondary"}`}
           >
-            Multi-Day
+            {t("multiDay")}
           </button>
         </div>
       </div>
 
       {loading ? (
-        <div className="flex-1 flex items-center justify-center text-secondary">Loading...</div>
+        <div className="flex-1 flex items-center justify-center text-secondary">{t("loading")}</div>
       ) : (
         <div className="flex-1 flex overflow-hidden">
           {/* Calendar sidebar */}
@@ -545,13 +549,13 @@ export default function TradeComparePage() {
             {/* Legend */}
             <div className="text-[10px] text-secondary mt-2 space-y-1">
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-[#4caf50]"></span> Both traded
+                <span className="w-3 h-3 rounded bg-[#4caf50]"></span> {t("bothTraded")}
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-[#4fc3f7]"></span> {name1} only
+                <span className="w-3 h-3 rounded bg-[#4fc3f7]"></span> {t("simOnly", { name: name1 })}
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-[#ff8a65]"></span> {name2} only
+                <span className="w-3 h-3 rounded bg-[#ff8a65]"></span> {t("liveOnly", { name: name2 })}
               </div>
             </div>
           </div>
@@ -583,13 +587,13 @@ export default function TradeComparePage() {
             <div className="flex items-center justify-between px-4 py-2 border-t border-border-default bg-surface shrink-0">
               <div className="flex items-center gap-1">
                 <button onClick={goFirst} className="px-2 py-1 text-xs text-secondary hover:text-primary rounded hover:bg-surface-2">|◀</button>
-                <button onClick={() => navigateDay(-1)} className="px-2 py-1 text-xs text-secondary hover:text-primary rounded hover:bg-surface-2">◀ Prev</button>
+                <button onClick={() => navigateDay(-1)} className="px-2 py-1 text-xs text-secondary hover:text-primary rounded hover:bg-surface-2">{t("prev")}</button>
               </div>
               <span className="text-sm font-mono text-primary">
                 {selectedDate || "—"}
               </span>
               <div className="flex items-center gap-1">
-                <button onClick={() => navigateDay(1)} className="px-2 py-1 text-xs text-secondary hover:text-primary rounded hover:bg-surface-2">Next ▶</button>
+                <button onClick={() => navigateDay(1)} className="px-2 py-1 text-xs text-secondary hover:text-primary rounded hover:bg-surface-2">{t("next")}</button>
                 <button onClick={goLast} className="px-2 py-1 text-xs text-secondary hover:text-primary rounded hover:bg-surface-2">▶|</button>
               </div>
             </div>
@@ -598,7 +602,7 @@ export default function TradeComparePage() {
             <div className="flex items-center gap-6 px-4 py-1.5 border-t border-border-default text-xs shrink-0">
               <span>
                 <span className="text-[#4fc3f7] font-medium">{name1}:</span>{" "}
-                <span className="text-secondary">{selF1.length} fills</span>
+                <span className="text-secondary">{selF1.length} {t("fills")}</span>
                 {" · "}
                 <span className={selPnl1 >= 0 ? "text-pnl-gain" : "text-pnl-loss"}>
                   {fmtPnl(selPnl1)}
@@ -606,14 +610,14 @@ export default function TradeComparePage() {
               </span>
               <span>
                 <span className="text-[#ff8a65] font-medium">{name2}:</span>{" "}
-                <span className="text-secondary">{selF2.length} fills</span>
+                <span className="text-secondary">{selF2.length} {t("fills")}</span>
                 {" · "}
                 <span className={selPnl2 >= 0 ? "text-pnl-gain" : "text-pnl-loss"}>
                   {fmtPnl(selPnl2)}
                 </span>
               </span>
               <span>
-                <span className="text-secondary">Δ:</span>{" "}
+                <span className="text-secondary">{t("delta")}:</span>{" "}
                 <span className={selPnl1 - selPnl2 >= 0 ? "text-pnl-gain" : "text-pnl-loss"}>
                   {fmtPnl(selPnl1 - selPnl2)}
                 </span>

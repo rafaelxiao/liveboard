@@ -341,19 +341,6 @@ export default function ComparisonPage() {
               <p className="mt-1 text-[10px] text-muted">
                 Shared Δ = difference on days both strategies traded. Date Δ = difference from days only one traded.
               </p>
-              {level === "strategy" && strategyKeys.length === 2 && strategyKeys[0].name_key === strategyKeys[1].name_key && (
-                <a
-                  href={`${import.meta.env.BASE_URL}trade-compare?series_1=${strategyKeys[0].series_id}&series_2=${strategyKeys[1].series_id}&strategy=${strategyKeys[0].name_key}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-md border border-accent bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  Trade-by-trade chart
-                </a>
-              )}
             </div>
           )}
 
@@ -430,6 +417,23 @@ export default function ComparisonPage() {
               <p className="mt-1 text-[10px] text-muted">
                 Per-trade spread = (sell − buy) / buy. +Δ = baseline captures more spread (better execution).
               </p>
+            </div>
+          )}
+
+          {/* Trade-by-trade chart link (strategy level only) */}
+          {level === "strategy" && strategyKeys.length === 2 && strategyKeys[0].name_key === strategyKeys[1].name_key && (
+            <div className="mt-6 pt-4 border-t border-border-default">
+              <a
+                href={`${import.meta.env.BASE_URL}trade-compare?series_1=${strategyKeys[0].series_id}&series_2=${strategyKeys[1].series_id}&strategy=${strategyKeys[0].name_key}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-accent bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                {t("tradeChart")}
+              </a>
             </div>
           )}
         </>
