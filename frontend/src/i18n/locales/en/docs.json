@@ -87,7 +87,8 @@
     "viewShared": "Public view of a shared series (no auth)",
     "health": "Health check — returns {\"status\":\"ok\"}",
     "getFundMovements": "List fund movements",
-    "getFills": "List fills for a series — ?strategy_name=&date_from=&date_to=&limit=&offset="
+    "getFills": "List fills for a series — ?strategy_name=&date_from=&date_to=&limit=&offset=",
+    "getCapital": "Capital snapshot: free cash + per-strategy capital + PnL + net value"
   },
   "footer": {
     "platform": "LiveBoard — Trade Analytics Platform",

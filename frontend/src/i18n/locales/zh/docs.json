@@ -87,7 +87,8 @@
     "viewShared": "公开查看已分享的序列（无需登录）",
     "health": "健康检查 — 返回 {\"status\":\"ok\"}",
     "getFundMovements": "查询资金流水",
-    "getFills": "查询成交记录 — ?strategy_name=&date_from=&date_to=&limit=&offset="
+    "getFills": "查询成交记录 — ?strategy_name=&date_from=&date_to=&limit=&offset=",
+    "getCapital": "资本快照：空闲资金 + 各策略资金 + 盈亏 + 净值"
   },
   "footer": {
     "platform": "LiveBoard — 交易分析平台",

@@ -6,7 +6,7 @@ from app.core.deps import get_api_user, get_current_user, get_user
 from app.db import get_db
 from app.models.series import Series
 from app.models.user import User
-from app.schemas.series import FillOut, SeriesCreateIn, SeriesDetailOut, SeriesOut
+from app.schemas.series import FillOut, StrategyCapital, SeriesCapitalOut, SeriesCreateIn, SeriesDetailOut, SeriesOut
 from app.schemas.validation import ValidationConfigIn, ValidationConfigOut
 from app.services.series import (
     SeriesNotFound,
@@ -156,3 +156,56 @@ def list_fills(
         )
         for f in fills
     ]
+
+
+@router.get("/series/{series_id}/capital")
+def get_capital(
+    series_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_user),
+) -> SeriesCapitalOut:
+    """Current capital snapshot: free cash, per-strategy allocation, account total."""
+    from datetime import datetime, timezone
+    from sqlalchemy import select
+    from app.models.strategy import Strategy
+    from app.models.fill import Fill
+    from app.models.instrument import Instrument
+    from app.services.capital import free_cash, strategy_base, account_base
+    from app.services.pairing import pair_fills
+
+    series = db.get(Series, series_id)
+    if series is None or (series.user_id != user.id and user.role != "admin"):
+        raise HTTPException(status_code=404, detail="series not found")
+
+    now = datetime.now(timezone.utc)
+    fc = free_cash(db, series_id, None)
+    acct = account_base(db, series_id, None)
+
+    strategies: list[StrategyCapital] = []
+    stmts = db.execute(select(Strategy).where(Strategy.series_id == series_id)).scalars().all()
+
+    # Load instruments once
+    instruments = {i.symbol: i for i in db.execute(select(Instrument).where(Instrument.series_id == series_id)).scalars()}
+
+    for st in stmts:
+        cap = strategy_base(db, series_id, st.id, None)
+        fills = db.execute(select(Fill).where(
+            Fill.series_id == series_id, Fill.strategy_id == st.id, Fill.voided_at.is_(None)
+        )).scalars().all()
+        rts = pair_fills(fills, instruments)
+        total_pnl = sum(rt.net_pnl for rt in rts)
+        net_value = cap + total_pnl
+        strategies.append(StrategyCapital(
+            strategy_id=st.id,
+            name_key=st.name_key,
+            name=st.name,
+            capital=str(cap),
+            pnl=str(total_pnl),
+            net_value=str(net_value),
+        ))
+
+    return SeriesCapitalOut(
+        free_cash=str(fc.quantize(Decimal("0.01"))),
+        strategies=strategies,
+        account_total=str(acct.quantize(Decimal("0.01"))),
+    )

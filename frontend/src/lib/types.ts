@@ -342,3 +342,29 @@ export interface FillOut {
   client_fill_id: string;
   signal_id: string | null;
 }
+
+export interface StrategyCapital {
+  strategy_id: number;
+  name_key: string;
+  name: string;
+  capital: string;
+  pnl: string;
+  net_value: string;
+}
+
+export interface SeriesCapital {
+  free_cash: string;
+  strategies: StrategyCapital[];
+  account_total: string;
+}
+
+export interface FundMovement {
+  client_movement_id: string;
+  ts: string;
+  currency: string;
+  amount: string;
+  from_bucket: string;
+  to_bucket: string;
+  from_strategy: string | null;
+  to_strategy: string | null;
+}

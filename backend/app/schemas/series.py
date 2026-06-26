@@ -141,3 +141,20 @@ class FillOut(BaseModel):
     ts: datetime
     client_fill_id: str
     signal_id: str | None = None
+
+
+class StrategyCapital(BaseModel):
+    """Capital allocated + PnL for one strategy."""
+    strategy_id: int
+    name_key: str
+    name: str
+    capital: str
+    pnl: str
+    net_value: str
+
+
+class SeriesCapitalOut(BaseModel):
+    """Snapshot of free cash, strategy allocations, and account total."""
+    free_cash: str
+    strategies: list[StrategyCapital]
+    account_total: str

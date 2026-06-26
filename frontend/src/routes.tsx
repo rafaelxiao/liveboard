@@ -11,6 +11,7 @@ import AdminUsersPage from "./pages/AdminUsersPage";
 import DashboardPage from "./pages/DashboardPage";
 import ComparisonPage from "./pages/ComparisonPage";
 import TradeComparePage from "./pages/TradeComparePage";
+import CapitalPage from "./pages/CapitalPage";
 import DocsPage from "./pages/DocsPage";
 import SharePage from "./pages/SharePage";
 
@@ -28,6 +29,7 @@ export default function AppRoutes() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/compare" element={<ComparisonPage />} />
           <Route path="/trade-compare" element={<TradeComparePage />} />
+          <Route path="/series/:id/capital" element={<CapitalPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route element={<RequireAdmin />}>
             <Route path="/admin/users" element={<AdminUsersPage />} />
