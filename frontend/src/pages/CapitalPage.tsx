@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import type { SeriesCapital, FundMovement } from "../lib/types";
@@ -15,6 +15,16 @@ function fmtAbs(v: string): string {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+interface StagedMove {
+  id: number;
+  fromBucket: string;
+  toBucket: string;
+  fromStrat: string | null;
+  toStrat: string | null;
+  amount: number;
+  label: string;
+}
+
 export default function CapitalPage() {
   const { id } = useParams<{ id: string }>();
   const seriesId = Number(id);
@@ -22,131 +32,179 @@ export default function CapitalPage() {
   const seriesName = (seriesList as { id: number; name: string }[] | undefined)?.find((s) => s.id === seriesId)?.name || `Series ${seriesId}`;
 
   const [capital, setCapital] = useState<SeriesCapital | null>(null);
-  const [movements, setMovements] = useState<FundMovement[]>([]);
+  const [committed, setCommitted] = useState<FundMovement[]>([]);
+  const [staged, setStaged] = useState<StagedMove[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nextId, setNextId] = useState(1);
 
-  // Fund movement form
-  const [formType, setFormType] = useState("deposit"); // deposit|withdraw|allocate|free|transfer
+  // Form
+  const [formType, setFormType] = useState("deposit");
   const [formAmount, setFormAmount] = useState("");
   const [formFrom, setFormFrom] = useState("");
   const [formTo, setFormTo] = useState("");
-  const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
-  const [formOk, setFormOk] = useState("");
+  const [committing, setCommitting] = useState(false);
+  const [commitOk, setCommitOk] = useState("");
 
   useEffect(() => {
     if (!seriesId) return;
     setLoading(true);
     Promise.all([
       apiFetch<SeriesCapital>(`/series/${seriesId}/capital`),
-      apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=50`),
+      apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=100`),
     ])
-      .then(([cap, mov]) => {
-        setCapital(cap);
-        setMovements(mov);
-      })
+      .then(([cap, mov]) => { setCapital(cap); setCommitted(mov); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [seriesId]);
 
-  const handleSubmit = async () => {
-    setFormError("");
-    setFormOk("");
+  // Computed balances: start from capital, apply committed + staged
+  const balances = useMemo(() => {
+    if (!capital) return { free: 0, strats: {} as Record<string, number> };
+    let free = parseFloat(capital.free_cash);
+    const strats: Record<string, number> = {};
+    for (const s of capital.strategies) {
+      strats[s.name_key] = parseFloat(s.net_value);
+    }
+    // Apply committed movements
+    for (const m of committed) {
+      applyMove(free, strats, m.from_bucket, m.to_bucket, parseFloat(m.amount), m.from_strategy, m.to_strategy, -1);
+    }
+    // Result after committed is the "current" state
+    const curFree = free;
+    const curStrats = { ...strats };
+    // Also apply staged to get "projected"
+    for (const s of staged) {
+      applyMove(free, strats, s.fromBucket, s.toBucket, s.amount, s.fromStrat, s.toStrat, -1);
+    }
+    return { curFree: Math.round(curFree * 100) / 100, curStrats: curStrats as Record<string, number>, projFree: Math.round(free * 100) / 100, projStrats: strats as Record<string, number> };
+  }, [capital, committed, staged]);
+
+  function applyMove(
+    free: number, strats: Record<string, number>,
+    fromB: string, toB: string, amt: number,
+    fromS: string | null, toS: string | null, _dir: number,
+  ) {
+    const amount = amt;
+    if (fromB === "FREE_CASH") free -= amount;
+    if (toB === "FREE_CASH") free += amount;
+    if (fromB === "STRATEGY" && fromS) strats[fromS] = (strats[fromS] || 0) - amount;
+    if (toB === "STRATEGY" && toS) strats[toS] = (strats[toS] || 0) + amount;
+  }
+
+  const canWithdraw = (balances.curFree ?? 0) >= parseFloat(formAmount || "0");
+  const canAllocate = (balances.curFree ?? 0) >= parseFloat(formAmount || "0");
+  const canFree = formFrom ? (balances.curStrats?.[formFrom] || 0) >= parseFloat(formAmount || "0") : false;
+  const canTransfer = formFrom && formTo ? (balances.curStrats?.[formFrom] || 0) >= parseFloat(formAmount || "0") : false;
+
+  const validateAdd = (): string | null => {
     const amt = parseFloat(formAmount);
-    if (isNaN(amt) || amt <= 0) { setFormError("Amount must be > 0"); return; }
-
-    let fromBucket = "";
-    let toBucket = "";
-    let fromStrat: string | null = null;
-    let toStrat: string | null = null;
-
+    if (isNaN(amt) || amt <= 0) return "Amount must be > 0";
     switch (formType) {
-      case "deposit":
-        fromBucket = "EXTERNAL"; toBucket = "FREE_CASH"; break;
-      case "withdraw":
-        fromBucket = "FREE_CASH"; toBucket = "EXTERNAL"; break;
-      case "allocate":
-        fromBucket = "FREE_CASH"; toBucket = "STRATEGY"; toStrat = formTo; break;
-      case "free":
-        fromBucket = "STRATEGY"; toBucket = "FREE_CASH"; fromStrat = formFrom; break;
-      case "transfer":
-        fromBucket = "STRATEGY"; toBucket = "STRATEGY"; fromStrat = formFrom; toStrat = formTo; break;
+      case "withdraw": if (!canWithdraw) return "Insufficient free cash"; break;
+      case "allocate": if (!canAllocate) return "Insufficient free cash"; break;
+      case "free": if (!formFrom) return "Select source strategy"; if (!canFree) return "Insufficient strategy capital"; break;
+      case "transfer": if (!formFrom || !formTo) return "Select both strategies"; if (formFrom === formTo) return "Same strategy"; if (!canTransfer) return "Insufficient source capital"; break;
     }
+    return null;
+  };
 
-    if ((formType === "allocate" || formType === "transfer") && !toStrat) {
-      setFormError("Select target strategy"); return;
+  const handleAdd = () => {
+    const err = validateAdd();
+    if (err) { setFormError(err); return; }
+    setFormError("");
+    const amt = parseFloat(formAmount);
+    let fromB = "", toB = "", fromS: string | null = null, toS: string | null = null;
+    let label = "";
+    switch (formType) {
+      case "deposit": fromB = "EXTERNAL"; toB = "FREE_CASH"; label = `Deposit ${fmtAbs(formAmount)}`; break;
+      case "withdraw": fromB = "FREE_CASH"; toB = "EXTERNAL"; label = `Withdraw ${fmtAbs(formAmount)}`; break;
+      case "allocate": fromB = "FREE_CASH"; toB = "STRATEGY"; toS = formTo; label = `Allocate ${fmtAbs(formAmount)} → ${formTo}`; break;
+      case "free": fromB = "STRATEGY"; toB = "FREE_CASH"; fromS = formFrom; label = `Free ${fmtAbs(formAmount)} ← ${formFrom}`; break;
+      case "transfer": fromB = "STRATEGY"; toB = "STRATEGY"; fromS = formFrom; toS = formTo; label = `Move ${fmtAbs(formAmount)} ${formFrom} → ${formTo}`; break;
     }
-    if ((formType === "free" || formType === "transfer") && !fromStrat) {
-      setFormError("Select source strategy"); return;
-    }
+    setStaged((prev) => [...prev, { id: nextId, fromBucket: fromB, toBucket: toB, fromStrat: fromS, toStrat: toS, amount: amt, label }]);
+    setNextId((n) => n + 1);
+    setFormAmount("");
+  };
 
-    setFormSubmitting(true);
+  const handleDelete = (idx: number) => {
+    setStaged((prev) => prev.slice(0, idx));
+  };
+
+  const handleCommit = async () => {
+    if (staged.length === 0) return;
+    setCommitting(true);
+    setCommitOk("");
     try {
       await apiFetch(`/series/${seriesId}/fund-movements`, {
         method: "POST",
-        body: [{
-          client_movement_id: `ui-${Date.now()}`,
+        body: staged.map((s, i) => ({
+          client_movement_id: `ui-${Date.now()}-${i}`,
           ts: new Date().toISOString(),
           currency: "CNY",
-          amount: amt.toFixed(2),
-          from_bucket: fromBucket,
-          to_bucket: toBucket,
-          from_strategy: fromStrat,
-          to_strategy: toStrat,
-        }],
+          amount: s.amount.toFixed(2),
+          from_bucket: s.fromBucket,
+          to_bucket: s.toBucket,
+          from_strategy: s.fromStrat,
+          to_strategy: s.toStrat,
+        })),
       });
-      setFormOk("Done");
-      setFormAmount("");
+      setCommitOk("Committed");
+      setStaged([]);
       // Refresh
       const [cap, mov] = await Promise.all([
         apiFetch<SeriesCapital>(`/series/${seriesId}/capital`),
-        apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=50`),
+        apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=100`),
       ]);
       setCapital(cap);
-      setMovements(mov);
+      setCommitted(mov);
     } catch (e: unknown) {
-      setFormError(e instanceof Error ? e.message : "Failed");
+      setFormError(e instanceof Error ? e.message : "Commit failed");
     } finally {
-      setFormSubmitting(false);
+      setCommitting(false);
     }
   };
 
   if (loading) return <div className="p-8 text-secondary">Loading...</div>;
   if (!capital) return <div className="p-8 text-secondary">No data</div>;
 
-  const strategNames = capital.strategies.map((s) => s.name_key);
+  const stratNames = capital.strategies.map((s) => s.name_key);
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <h2 className="text-lg font-semibold text-primary">{seriesName} · Fund Management</h2>
 
-      {/* Snapshot */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="rounded-lg border border-border-default bg-surface p-4">
-          <div className="text-xs text-secondary">Account Total</div>
-          <div className="text-lg font-mono font-semibold text-primary mt-1">{fmtAbs(capital.account_total)}</div>
+      {/* Balances */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="rounded-lg border border-border-default bg-surface p-3">
+          <div className="text-[10px] text-secondary uppercase">Account Total</div>
+          <div className="text-base font-mono font-semibold text-primary mt-0.5">{fmtAbs(capital.account_total)}</div>
         </div>
-        <div className="rounded-lg border border-border-default bg-surface p-4">
-          <div className="text-xs text-secondary">Free Cash</div>
-          <div className="text-lg font-mono font-semibold text-primary mt-1">{fmtAbs(capital.free_cash)}</div>
-        </div>
-        <div className="rounded-lg border border-border-default bg-surface p-4">
-          <div className="text-xs text-secondary">Strategies</div>
-          <div className="text-lg font-mono font-semibold text-primary mt-1">{capital.strategies.length}</div>
-        </div>
-        <div className="rounded-lg border border-border-default bg-surface p-4">
-          <div className="text-xs text-secondary">Total Net Value</div>
-          <div className="text-lg font-mono font-semibold text-primary mt-1">
-            {fmtAbs(
-              String(parseFloat(capital.free_cash) + capital.strategies.reduce((s, st) => s + parseFloat(st.net_value), 0))
+        <div className="rounded-lg border border-border-default bg-surface p-3">
+          <div className="text-[10px] text-secondary uppercase">Free Cash</div>
+          <div className="text-base font-mono font-semibold text-primary mt-0.5">
+            {fmtAbs(String(balances.curFree))}
+            {staged.length > 0 && (
+              <span className="text-[10px] text-muted ml-1">→ {fmtAbs(String(balances.projFree))}</span>
             )}
+          </div>
+        </div>
+        <div className="rounded-lg border border-border-default bg-surface p-3">
+          <div className="text-[10px] text-secondary uppercase">Strategies</div>
+          <div className="text-base font-mono font-semibold text-primary mt-0.5">{capital.strategies.length}</div>
+        </div>
+        <div className="rounded-lg border border-border-default bg-surface p-3">
+          <div className="text-[10px] text-secondary uppercase">Total Net Value</div>
+          <div className="text-base font-mono font-semibold text-primary mt-0.5">
+            {fmtAbs(String(parseFloat(capital.free_cash) + capital.strategies.reduce((s, st) => s + parseFloat(st.net_value), 0)))}
           </div>
         </div>
       </div>
 
-      {/* Strategy table */}
+      {/* Strategy allocations */}
       <div className="rounded-lg border border-border-default overflow-hidden">
-        <div className="px-4 py-3 border-b border-border-default bg-surface-2">
+        <div className="px-4 py-2.5 border-b border-border-default bg-surface-2">
           <h3 className="text-sm font-medium text-primary">Strategy Allocations</h3>
         </div>
         <table className="w-full text-xs">
@@ -157,23 +215,23 @@ export default function CapitalPage() {
               <th className="text-right py-2 px-4 font-medium text-secondary">PnL</th>
               <th className="text-right py-2 px-4 font-medium text-secondary">Net Value</th>
               <th className="text-right py-2 px-4 font-medium text-secondary">Return %</th>
+              <th className="text-right py-2 px-4 font-medium text-secondary">Projected</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
             {capital.strategies.map((s) => {
-              const retPct = parseFloat(s.capital) > 0
-                ? (parseFloat(s.pnl) / parseFloat(s.capital) * 100)
-                : 0;
+              const retPct = parseFloat(s.capital) > 0 ? (parseFloat(s.pnl) / parseFloat(s.capital) * 100) : 0;
+              const proj = balances.projStrats?.[s.name_key] ?? parseFloat(s.net_value);
+              const diff = proj - parseFloat(s.net_value);
               return (
                 <tr key={s.strategy_id} className="hover:bg-surface-2/50">
                   <td className="py-2 px-4 text-primary font-medium">{s.name_key}</td>
                   <td className="py-2 px-4 text-right font-mono text-secondary">{fmtAbs(s.capital)}</td>
-                  <td className={`py-2 px-4 text-right font-mono ${parseFloat(s.pnl) >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>
-                    {fmt(s.pnl)}
-                  </td>
+                  <td className={`py-2 px-4 text-right font-mono ${parseFloat(s.pnl) >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>{fmt(s.pnl)}</td>
                   <td className="py-2 px-4 text-right font-mono text-primary">{fmtAbs(s.net_value)}</td>
-                  <td className={`py-2 px-4 text-right font-mono ${retPct >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>
-                    {retPct >= 0 ? "+" : ""}{retPct.toFixed(1)}%
+                  <td className={`py-2 px-4 text-right font-mono ${retPct >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>{retPct >= 0 ? "+" : ""}{retPct.toFixed(1)}%</td>
+                  <td className={`py-2 px-4 text-right font-mono ${diff !== 0 ? "text-accent" : "text-muted"}`}>
+                    {diff !== 0 ? fmtAbs(String(proj)) : "—"}
                   </td>
                 </tr>
               );
@@ -182,16 +240,16 @@ export default function CapitalPage() {
         </table>
       </div>
 
-      {/* Fund movement form */}
+      {/* Add movement form */}
       <div className="rounded-lg border border-border-default bg-surface p-5">
-        <h3 className="text-sm font-medium text-primary mb-4">Fund Movement</h3>
+        <h3 className="text-sm font-medium text-primary mb-3">New Movement</h3>
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-xs text-secondary">
             Type
             <select
               value={formType}
-              onChange={(e) => { setFormType(e.target.value); setFormFrom(""); setFormTo(""); }}
-              className="mt-1 block rounded border border-border-default bg-surface px-2 py-1.5 text-xs text-primary w-28"
+              onChange={(e) => { setFormType(e.target.value); setFormFrom(""); setFormTo(""); setFormError(""); }}
+              className="mt-1 block h-8 rounded border border-border-default bg-surface px-2 text-xs text-primary w-32"
             >
               <option value="deposit">Deposit</option>
               <option value="withdraw">Withdraw</option>
@@ -204,9 +262,9 @@ export default function CapitalPage() {
           {(formType === "free" || formType === "transfer") && (
             <label className="text-xs text-secondary">
               From
-              <select value={formFrom} onChange={(e) => setFormFrom(e.target.value)} className="mt-1 block rounded border border-border-default bg-surface px-2 py-1.5 text-xs text-primary w-36">
+              <select value={formFrom} onChange={(e) => { setFormFrom(e.target.value); setFormError(""); }} className="mt-1 block h-8 rounded border border-border-default bg-surface px-2 text-xs text-primary w-36">
                 <option value="">—</option>
-                {strategNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                {stratNames.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
             </label>
           )}
@@ -214,9 +272,9 @@ export default function CapitalPage() {
           {(formType === "allocate" || formType === "transfer") && (
             <label className="text-xs text-secondary">
               To
-              <select value={formTo} onChange={(e) => setFormTo(e.target.value)} className="mt-1 block rounded border border-border-default bg-surface px-2 py-1.5 text-xs text-primary w-36">
+              <select value={formTo} onChange={(e) => { setFormTo(e.target.value); setFormError(""); }} className="mt-1 block h-8 rounded border border-border-default bg-surface px-2 text-xs text-primary w-36">
                 <option value="">—</option>
-                {strategNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                {stratNames.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
             </label>
           )}
@@ -224,29 +282,82 @@ export default function CapitalPage() {
           <label className="text-xs text-secondary">
             Amount
             <input
-              type="number"
-              value={formAmount}
-              onChange={(e) => setFormAmount(e.target.value)}
+              type="number" value={formAmount} onChange={(e) => { setFormAmount(e.target.value); setFormError(""); }}
               placeholder="0.00"
-              className="mt-1 block rounded border border-border-default bg-surface px-2 py-1.5 text-xs text-primary w-32 font-mono"
+              className="mt-1 block h-8 rounded border border-border-default bg-surface px-2 text-xs text-primary w-32 font-mono"
             />
           </label>
 
           <button
-            onClick={handleSubmit}
-            disabled={formSubmitting}
-            className="rounded-md bg-accent text-white px-4 py-1.5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
+            onClick={handleAdd}
+            disabled={!!validateAdd()}
+            className="h-8 rounded-md bg-accent text-white px-4 text-xs font-medium hover:opacity-90 disabled:opacity-50"
           >
-            {formSubmitting ? "..." : "Submit"}
+            Stage
           </button>
         </div>
+        {formType !== "deposit" && (
+          <div className="mt-2 text-[10px] text-muted">
+            {formType === "withdraw" && `Available: ${fmtAbs(String(balances.curFree))}`}
+            {formType === "allocate" && `Available: ${fmtAbs(String(balances.curFree))}`}
+            {formType === "free" && formFrom && `Available: ${fmtAbs(String(balances.curStrats?.[formFrom] || 0))}`}
+            {formType === "transfer" && formFrom && `Available: ${fmtAbs(String(balances.curStrats?.[formFrom] || 0))}`}
+          </div>
+        )}
         {formError && <p className="mt-2 text-xs text-pnl-loss">{formError}</p>}
-        {formOk && <p className="mt-2 text-xs text-pnl-gain">{formOk}</p>}
       </div>
 
-      {/* Movement history */}
+      {/* Staged movements */}
+      {staged.length > 0 && (
+        <div className="rounded-lg border border-accent/30 bg-accent/5 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-accent/20 flex items-center justify-between">
+            <h3 className="text-sm font-medium text-accent">Staged Changes ({staged.length})</h3>
+            <span className="text-[10px] text-muted">Not yet persisted</span>
+          </div>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border-default">
+                <th className="text-left py-2 px-3 font-medium text-secondary w-8">#</th>
+                <th className="text-left py-2 px-3 font-medium text-secondary">Action</th>
+                <th className="text-right py-2 px-3 font-medium text-secondary">Amount</th>
+                <th className="text-right py-2 px-3 font-medium text-secondary w-16"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {staged.map((s, idx) => (
+                <tr key={s.id} className="hover:bg-surface-2/50">
+                  <td className="py-1.5 px-3 text-muted">{idx + 1}</td>
+                  <td className="py-1.5 px-3 text-primary">{s.label}</td>
+                  <td className="py-1.5 px-3 text-right font-mono text-primary">{fmtAbs(String(s.amount))}</td>
+                  <td className="py-1.5 px-3 text-right">
+                    <button
+                      onClick={() => handleDelete(idx)}
+                      className="text-[10px] text-pnl-loss hover:underline"
+                      title="Delete this and all after"
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="px-4 py-3 border-t border-accent/20 flex justify-end">
+            <button
+              onClick={handleCommit}
+              disabled={committing}
+              className="rounded-md bg-accent text-white px-6 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {committing ? "Committing..." : "Commit All Changes"}
+            </button>
+          </div>
+        </div>
+      )}
+      {commitOk && <p className="text-xs text-pnl-gain text-center">{commitOk}</p>}
+
+      {/* Committed history */}
       <div className="rounded-lg border border-border-default overflow-hidden">
-        <div className="px-4 py-3 border-b border-border-default bg-surface-2">
+        <div className="px-4 py-2.5 border-b border-border-default bg-surface-2">
           <h3 className="text-sm font-medium text-primary">Recent Movements</h3>
         </div>
         <div className="overflow-x-auto">
@@ -260,15 +371,11 @@ export default function CapitalPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {movements.slice(0, 30).map((m, i) => (
+              {committed.slice(0, 40).map((m, i) => (
                 <tr key={i} className="hover:bg-surface-2/50">
                   <td className="py-1.5 px-3 text-secondary whitespace-nowrap">{m.ts.slice(0, 19).replace("T", " ")}</td>
-                  <td className="py-1.5 px-3 text-secondary">
-                    {m.from_bucket}{m.from_strategy ? ` — ${m.from_strategy}` : ""}
-                  </td>
-                  <td className="py-1.5 px-3 text-secondary">
-                    {m.to_bucket}{m.to_strategy ? ` — ${m.to_strategy}` : ""}
-                  </td>
+                  <td className="py-1.5 px-3 text-secondary">{m.from_bucket}{m.from_strategy ? ` — ${m.from_strategy}` : ""}</td>
+                  <td className="py-1.5 px-3 text-secondary">{m.to_bucket}{m.to_strategy ? ` — ${m.to_strategy}` : ""}</td>
                   <td className="py-1.5 px-3 text-right font-mono text-primary">{fmtAbs(m.amount)}</td>
                 </tr>
               ))}
