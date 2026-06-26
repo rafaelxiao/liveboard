@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import Select from "../components/Select";
 import { apiFetch } from "../api/client";
 import type { SeriesCapital, FundMovement } from "../lib/types";
 import { useSeriesList } from "../state/useSeries";
@@ -195,24 +196,6 @@ export default function AccountPage() {
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <h2 className="text-lg font-semibold text-primary">{seriesName} · {t("title")}</h2>
 
-      {/* Close section */}
-      <div className="rounded-lg border border-border-default bg-surface p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-sm font-medium text-primary">{t("closeAccount")}</span>
-            <p className="text-[11px] text-muted mt-0.5">{t("closeHint")}</p>
-          </div>
-          <button
-            onClick={handleClose}
-            disabled={closing}
-            className="rounded-md border border-pnl-loss/30 bg-pnl-loss/10 text-pnl-loss px-3 py-1.5 text-xs font-medium hover:bg-pnl-loss/20 disabled:opacity-50"
-          >
-            {closing ? "..." : t("closeAccount")}
-          </button>
-        </div>
-        {closeError && <p className="mt-2 text-xs text-pnl-loss">{closeError}</p>}
-      </div>
-
       {/* Balances */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-lg border border-border-default bg-surface p-3">
@@ -282,39 +265,41 @@ export default function AccountPage() {
       <div className="rounded-lg border border-border-default bg-surface p-5">
         <h3 className="text-sm font-medium text-primary mb-3">{t("newMovement")}</h3>
         <div className="flex flex-wrap items-end gap-3">
-          <label className="text-xs text-secondary">
-            {t("type")}
-            <select
-              value={formType}
-              onChange={(e) => { setFormType(e.target.value); setFormFrom(""); setFormTo(""); setFormError(""); }}
-              className="mt-1 block h-8 rounded border border-border-default bg-surface px-2 text-xs text-primary w-32"
-            >
-              <option value="deposit">{t("deposit")}</option>
-              <option value="withdraw">{t("withdraw")}</option>
-              <option value="allocate">{t("allocate")}</option>
-              <option value="free">{t("free")}</option>
-              <option value="transfer">{t("transfer")}</option>
-            </select>
-          </label>
+          <Select
+            label={t("type")}
+            value={formType}
+            onChange={(e) => { setFormType(e.target.value); setFormFrom(""); setFormTo(""); setFormError(""); }}
+            className="w-32"
+          >
+            <option value="deposit">{t("deposit")}</option>
+            <option value="withdraw">{t("withdraw")}</option>
+            <option value="allocate">{t("allocate")}</option>
+            <option value="free">{t("free")}</option>
+            <option value="transfer">{t("transfer")}</option>
+          </Select>
 
           {(formType === "free" || formType === "transfer") && (
-            <label className="text-xs text-secondary">
-              {t("from")}
-              <select value={formFrom} onChange={(e) => { setFormFrom(e.target.value); setFormError(""); }} className="mt-1 block h-8 rounded border border-border-default bg-surface px-2 text-xs text-primary w-36">
-                <option value="">—</option>
-                {stratNames.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </label>
+            <Select
+              label={t("from")}
+              value={formFrom}
+              onChange={(e) => { setFormFrom(e.target.value); setFormError(""); }}
+              className="w-36"
+            >
+              <option value="">—</option>
+              {stratNames.map((n) => <option key={n} value={n}>{n}</option>)}
+            </Select>
           )}
 
           {(formType === "allocate" || formType === "transfer") && (
-            <label className="text-xs text-secondary">
-              {t("to")}
-              <select value={formTo} onChange={(e) => { setFormTo(e.target.value); setFormError(""); }} className="mt-1 block h-8 rounded border border-border-default bg-surface px-2 text-xs text-primary w-36">
-                <option value="">—</option>
-                {stratNames.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </label>
+            <Select
+              label={t("to")}
+              value={formTo}
+              onChange={(e) => { setFormTo(e.target.value); setFormError(""); }}
+              className="w-36"
+            >
+              <option value="">—</option>
+              {stratNames.map((n) => <option key={n} value={n}>{n}</option>)}
+            </Select>
           )}
 
           <label className="text-xs text-secondary">
@@ -392,6 +377,24 @@ export default function AccountPage() {
         </div>
       )}
       {commitOk && <p className="text-xs text-pnl-gain text-center">{t("committed")}</p>}
+
+      {/* Close section */}
+      <div className="rounded-lg border border-border-default bg-surface p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-sm font-medium text-primary">{t("closeAccount")}</span>
+            <p className="text-[11px] text-muted mt-0.5">{t("closeHint")}</p>
+          </div>
+          <button
+            onClick={handleClose}
+            disabled={closing}
+            className="rounded-md border border-pnl-loss/30 bg-pnl-loss/10 text-pnl-loss px-3 py-1.5 text-xs font-medium hover:bg-pnl-loss/20 disabled:opacity-50"
+          >
+            {closing ? "..." : t("closeAccount")}
+          </button>
+        </div>
+        {closeError && <p className="mt-2 text-xs text-pnl-loss">{closeError}</p>}
+      </div>
 
       {/* Committed history */}
       <div className="rounded-lg border border-border-default overflow-hidden">

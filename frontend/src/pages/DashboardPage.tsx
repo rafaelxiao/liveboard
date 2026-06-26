@@ -19,6 +19,8 @@ import { SkeletonCard, SkeletonChart } from "../components/SkeletonCard";
 import { Layers, Hash, ArrowRight } from "lucide-react";
 import { formatCurrency } from "../lib/format";
 import ShareDialog from "../components/ShareDialog";
+import Modal from "../components/Modal";
+import Select from "../components/Select";
 import { createSeries } from "../state/useSeriesCreate";
 
 function CreateSeriesButton({ onCreated }: { onCreated: () => void }) {
@@ -47,44 +49,37 @@ function CreateSeriesButton({ onCreated }: { onCreated: () => void }) {
     }
   };
 
-  if (!open) {
-    return (
+  return (
+    <>
       <button onClick={() => setOpen(true)} className="rounded-md border border-border-default bg-surface px-3 py-1.5 text-xs text-secondary hover:text-primary hover:border-accent">
         + {t("New series")}
       </button>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-accent/30 bg-surface p-4 space-y-3">
-      <h3 className="text-sm font-medium text-primary">{t("New series")}</h3>
-      <div className="flex flex-wrap gap-3">
-        <label className="text-xs text-secondary flex-1 min-w-[120px]">
-          {t("Name")}
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="my-series" className="mt-1 block w-full rounded border border-border-default bg-surface px-2 py-1.5 text-xs text-primary" />
-        </label>
-        <label className="text-xs text-secondary">
-          {t("Tag")}
-          <select value={tag} onChange={(e) => setTag(e.target.value)} className="mt-1 block rounded border border-border-default bg-surface px-2 py-1.5 text-xs text-primary">
+      <Modal open={open} onClose={() => setOpen(false)} title={t("New series")}>
+        <div className="space-y-3">
+          <label className="text-xs text-secondary block">
+            {t("Name")}
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="my-series" className="mt-1 block w-full rounded border border-border-default bg-surface px-2 py-1.5 text-xs text-primary h-8" />
+          </label>
+          <Select label={t("Tag")} value={tag} onChange={(e) => setTag(e.target.value)} className="w-full">
             <option value="live">live</option>
             <option value="sim">sim</option>
-          </select>
-        </label>
-        <label className="text-xs text-secondary">
-          {t("Currency")}
-          <input value={currency} onChange={(e) => setCurrency(e.target.value)} className="mt-1 block w-20 rounded border border-border-default bg-surface px-2 py-1.5 text-xs text-primary" />
-        </label>
-      </div>
-      {error && <p className="text-xs text-pnl-loss">{error}</p>}
-      <div className="flex gap-2">
-        <button onClick={handleCreate} disabled={submitting} className="rounded-md bg-accent text-white px-4 py-1.5 text-xs font-medium disabled:opacity-50">
-          {submitting ? "..." : t("Create")}
-        </button>
-        <button onClick={() => setOpen(false)} className="rounded-md border border-border-default px-3 py-1.5 text-xs text-secondary">
-          Cancel
-        </button>
-      </div>
-    </div>
+          </Select>
+          <label className="text-xs text-secondary block">
+            {t("Currency")}
+            <input value={currency} onChange={(e) => setCurrency(e.target.value)} className="mt-1 block w-full rounded border border-border-default bg-surface px-2 py-1.5 text-xs text-primary h-8" />
+          </label>
+          {error && <p className="text-xs text-pnl-loss">{error}</p>}
+          <div className="flex gap-2 pt-2">
+            <button onClick={handleCreate} disabled={submitting} className="rounded-md bg-accent text-white px-4 py-1.5 text-xs font-medium disabled:opacity-50">
+              {submitting ? "..." : t("Create")}
+            </button>
+            <button onClick={() => setOpen(false)} className="rounded-md border border-border-default px-3 py-1.5 text-xs text-secondary">
+              {t("Cancel")}
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }
 
