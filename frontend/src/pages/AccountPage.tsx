@@ -126,8 +126,11 @@ export default function AccountPage() {
 
   const validateAdd = (): string | null => {
     const amt = parseFloat(formAmount);
-    if (formType !== "create_strategy" && (isNaN(amt) || amt <= 0)) return "Amount must be > 0";
-    if (formType === "create_strategy" && isNaN(amt)) return "Invalid amount";
+    // Require amount > 0 for deposit/withdraw/free/transfer only
+    const needsAmount = ["deposit", "withdraw", "free", "transfer"].includes(formType);
+    if (needsAmount && (isNaN(amt) || amt <= 0)) return "Amount must be > 0";
+    // allocate and create_strategy can be 0
+    if (isNaN(amt)) return "Invalid amount";
     switch (formType) {
       case "withdraw": if (!canWithdraw) return "Insufficient free cash"; break;
       case "allocate": if (!canAllocate) return "Insufficient free cash"; break;
@@ -217,12 +220,10 @@ export default function AccountPage() {
   };
 
   const handleDeleteStrategy = (nameKey: string) => {
-    // Check if strategy has capital (current or projected)
-    const curCap = balances.curStrats?.[nameKey] || 0;
+    // Check projected (post-staged) capital — allows chained free+delete
     const projCap = balances.projStrats?.[nameKey] || 0;
-    if (curCap > 0 || projCap > 0) {
-      const cap = curCap > 0 ? curCap : projCap;
-      alert(`${t("cantDeleteHasCapital")}: ${cap.toFixed(2)}. ${t("freeFirst")}`);
+    if (projCap > 0) {
+      alert(`${t("cantDeleteHasCapital")}: ${projCap.toFixed(2)}. ${t("freeFirst")}`);
       return;
     }
     setStaged((prev) => [...prev, { id: nextId, type: "delete_strategy", fromBucket: "", toBucket: "", fromStrat: nameKey, toStrat: null, amount: 0, label: `${t("deletedStrategy")}: ${nameKey}` }]);
