@@ -403,24 +403,6 @@ export default function AccountPage() {
       )}
       {commitOk && <p className="text-xs text-pnl-gain text-center">{t("committed")}</p>}
 
-      {/* Close section */}
-      <div className="rounded-lg border border-border-default bg-surface p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-sm font-medium text-primary">{t("closeAccount")}</span>
-            <p className="text-[11px] text-muted mt-0.5">{t("closeHint")}</p>
-          </div>
-          <button
-            onClick={handleClose}
-            disabled={closing}
-            className="rounded-md border border-pnl-loss/30 bg-pnl-loss/10 text-pnl-loss px-3 py-1.5 text-xs font-medium hover:bg-pnl-loss/20 disabled:opacity-50"
-          >
-            {closing ? "..." : t("closeAccount")}
-          </button>
-        </div>
-        {closeError && <p className="mt-2 text-xs text-pnl-loss">{closeError}</p>}
-      </div>
-
       {/* Committed history */}
       <div className="rounded-lg border border-border-default overflow-hidden">
         <div className="px-4 py-2.5 border-b border-border-default bg-surface-2">
@@ -448,6 +430,24 @@ export default function AccountPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Close section */}
+      <div className="rounded-lg border border-border-default bg-surface p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-sm font-medium text-primary">{t("closeAccount")}</span>
+            <p className="text-[11px] text-muted mt-0.5">{t("closeHint")}</p>
+          </div>
+          <button
+            onClick={handleClose}
+            disabled={closing}
+            className="rounded-md border border-pnl-loss/30 bg-pnl-loss/10 text-pnl-loss px-3 py-1.5 text-xs font-medium hover:bg-pnl-loss/20 disabled:opacity-50"
+          >
+            {closing ? "..." : t("closeAccount")}
+          </button>
+        </div>
+        {closeError && <p className="mt-2 text-xs text-pnl-loss">{closeError}</p>}
       </div>
     </div>
   );
