@@ -26,9 +26,11 @@ class FundMovement(Base):
     from_strategy_id: Mapped[int | None] = mapped_column(
         ForeignKey("strategies.id", ondelete="SET NULL")
     )
+    from_strategy_name: Mapped[str | None] = mapped_column(String(128))
     to_strategy_id: Mapped[int | None] = mapped_column(
         ForeignKey("strategies.id", ondelete="SET NULL")
     )
+    to_strategy_name: Mapped[str | None] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

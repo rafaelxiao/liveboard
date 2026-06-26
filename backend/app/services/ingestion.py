@@ -225,7 +225,9 @@ def ingest_fund_movements(session: Session, *, series_id: int, movements: list) 
             existing.from_bucket = str(m.from_bucket)
             existing.to_bucket = str(m.to_bucket)
             existing.from_strategy_id = from_strategy_id
+            existing.from_strategy_name = m.from_strategy
             existing.to_strategy_id = to_strategy_id
+            existing.to_strategy_name = m.to_strategy
             existing.updated_at = datetime.now(UTC)
         else:
             session.add(
@@ -238,7 +240,9 @@ def ingest_fund_movements(session: Session, *, series_id: int, movements: list) 
                     from_bucket=str(m.from_bucket),
                     to_bucket=str(m.to_bucket),
                     from_strategy_id=from_strategy_id,
+                    from_strategy_name=m.from_strategy,
                     to_strategy_id=to_strategy_id,
+                    to_strategy_name=m.to_strategy,
                     created_at=datetime.now(UTC),
                     updated_at=datetime.now(UTC),
                 )

@@ -135,15 +135,6 @@ def get_fund_movements(
             FundMovement.voided_at.is_(None),
         ).order_by(FundMovement.ts)
     ).all()
-    # Resolve strategy names
-    strat_ids = set()
-    for fm in rows:
-        if fm.from_strategy_id:
-            strat_ids.add(fm.from_strategy_id)
-        if fm.to_strategy_id:
-            strat_ids.add(fm.to_strategy_id)
-    strats = {s.id: s.name for s in db.scalars(select(Strategy).where(Strategy.id.in_(strat_ids))).all()} if strat_ids else {}
-
     return [
         {
             "client_movement_id": fm.client_movement_id,
@@ -151,8 +142,8 @@ def get_fund_movements(
             "currency": fm.currency,
             "from_bucket": fm.from_bucket,
             "to_bucket": fm.to_bucket,
-            "from_strategy": strats.get(fm.from_strategy_id) if fm.from_strategy_id else None,
-            "to_strategy": strats.get(fm.to_strategy_id) if fm.to_strategy_id else None,
+            "from_strategy": fm.from_strategy_name,
+            "to_strategy": fm.to_strategy_name,
             "amount": str(fm.amount),
         }
         for fm in rows
