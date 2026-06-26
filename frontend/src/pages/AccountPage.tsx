@@ -189,6 +189,7 @@ export default function AccountPage() {
         setLifecycleEvents((prev) => [...prev, ...newStrats.map((s) => ({
           ts: new Date().toISOString(),
           label: `${t("createdStrategy")}: ${s.name_key}`,
+          type: "created" as const,
         }))]);
       }
       setCapital(cap);
@@ -203,9 +204,9 @@ export default function AccountPage() {
         }
       }
       setLifecycleEvents((prev) => {
-        const del = prev.filter((e) => e.type === "deleted") as { ts: string; label: string; type: "created" | "deleted" }[];
-        const created = Array.from(stratAlloc.entries()).map(([name, ts]) => ({ ts, label: `${t("createdStrategy")}: ${name}`, type: "created" as const }));
-        return [...created, ...del];
+        const del = prev.filter((e) => e.type === "deleted");
+        const created: { ts: string; label: string; type: "created" }[] = Array.from(stratAlloc.entries()).map(([name, ts]) => ({ ts, label: `${t("createdStrategy")}: ${name}`, type: "created" }));
+        return [...created, ...del] as { ts: string; label: string; type: "created" | "deleted" }[];
       });
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : "Commit failed");
