@@ -173,11 +173,12 @@ export default function AccountPage() {
       // Commit fund movements (skip 0-amount ones)
       const moves = staged.filter((s) => s.type === "move" && s.amount > 0);
       if (moves.length > 0) {
+        const baseTs = new Date();
         await apiFetch(`/series/${seriesId}/fund-movements`, {
           method: "POST",
           body: moves.map((s, i) => ({
             client_movement_id: `ui-${Date.now()}-${i}`,
-            ts: new Date().toISOString(),
+            ts: new Date(baseTs.getTime() + i * 1000).toISOString(),
             currency: "CNY",
             amount: s.amount.toFixed(2),
             from_bucket: s.fromBucket,
