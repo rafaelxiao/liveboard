@@ -289,7 +289,7 @@ def remove_strategy(
 
     cap = strategy_base(db, series_id, st.id, None)
     if cap > 0:
-        raise HTTPException(status_code=400, detail=f"Strategy has {cap} capital. Free it first.")
+        raise HTTPException(status_code=400, detail=f"Strategy has {cap.quantize(Decimal('0.01'))} capital. Free it first.")
 
     fills = db.execute(
         select(Fill).where(Fill.series_id == series_id, Fill.strategy_id == st.id, Fill.voided_at.is_(None))
