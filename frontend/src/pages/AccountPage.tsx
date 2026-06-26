@@ -467,7 +467,12 @@ export default function AccountPage() {
             <tbody className="divide-y divide-border-subtle">
               {[...committed.slice(0, 40).map((m) => ({ type: "movement" as const, ts: m.ts, data: m })),
                 ...lifecycleEvents.slice(0, 20).map((e) => ({ type: "lifecycle" as const, ts: e.ts, data: e }))]
-                .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+                .sort((a, b) => {
+                  const dt = new Date(b.ts).getTime() - new Date(a.ts).getTime();
+                  if (dt !== 0) return dt;
+                  // lifecycle events after movements at same timestamp
+                  return a.type === "lifecycle" ? 1 : -1;
+                })
                 .slice(0, 40)
                 .map((entry, i) => {
                   if (entry.type === "lifecycle") {
