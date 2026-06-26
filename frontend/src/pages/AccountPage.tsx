@@ -71,9 +71,9 @@ export default function AccountPage() {
             }
           }
         }
-        const events: { ts: string; label: string; type: "created" }[] = [];
+        const events: { ts: string; label: string; type: "created" | "deleted" }[] = [];
         for (const [name, ts] of stratFirstAlloc) {
-          events.push({ ts, label: `${t("createdStrategy")}: ${name}`, type: "created" });
+          events.push({ ts, label: `${t("createdStrategy")}: ${name}`, type: "created" as const });
         }
         setLifecycleEvents(events);
       })
@@ -203,8 +203,8 @@ export default function AccountPage() {
         }
       }
       setLifecycleEvents((prev) => {
-        const del = prev.filter((e) => e.type === "deleted");
-        const created: { ts: string; label: string; type: "created" }[] = Array.from(stratAlloc.entries()).map(([name, ts]) => ({ ts, label: `${t("createdStrategy")}: ${name}`, type: "created" }));
+        const del = prev.filter((e) => e.type === "deleted") as { ts: string; label: string; type: "created" | "deleted" }[];
+        const created = Array.from(stratAlloc.entries()).map(([name, ts]) => ({ ts, label: `${t("createdStrategy")}: ${name}`, type: "created" as const }));
         return [...created, ...del];
       });
     } catch (e: unknown) {
