@@ -195,8 +195,9 @@ export default function AccountPage() {
           await apiFetch(`/series/${seriesId}/strategies/${d.fromStrat}`, { method: "DELETE" });
         }
       }
-      setCommitOk("Committed");
+      setCommitOk(t("committed"));
       setStaged([]);
+      setTimeout(() => setCommitOk(""), 3000);
       const [cap, mov] = await Promise.all([
         apiFetch<SeriesCapital>(`/series/${seriesId}/capital`),
         apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=100`),
