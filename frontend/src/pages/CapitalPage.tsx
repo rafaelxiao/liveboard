@@ -66,18 +66,14 @@ export default function CapitalPage() {
     for (const s of capital.strategies) {
       strats[s.name_key] = parseFloat(s.net_value);
     }
-    // Apply committed movements
-    for (const m of committed) {
-      applyMove(free, strats, m.from_bucket, m.to_bucket, parseFloat(m.amount), m.from_strategy, m.to_strategy, -1);
-    }
-    // Result after committed is the "current" state
+    // API already reflects all committed movements, so cur = API values
     const curFree = free;
-    const curStrats = { ...strats };
-    // Also apply staged to get "projected"
+    const curStrats = { ...strats } as Record<string, number>;
+    // Apply staged to get projected
     for (const s of staged) {
       applyMove(free, strats, s.fromBucket, s.toBucket, s.amount, s.fromStrat, s.toStrat, -1);
     }
-    return { curFree: Math.round(curFree * 100) / 100, curStrats: curStrats as Record<string, number>, projFree: Math.round(free * 100) / 100, projStrats: strats as Record<string, number> };
+    return { curFree: Math.round(curFree * 100) / 100, curStrats, projFree: Math.round(free * 100) / 100, projStrats: strats as Record<string, number> };
   }, [capital, committed, staged]);
 
   function applyMove(
