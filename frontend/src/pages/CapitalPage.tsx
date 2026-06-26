@@ -72,22 +72,28 @@ export default function CapitalPage() {
     const curFree = free;
     const curStrats = { ...strats } as Record<string, number>;
     // Apply staged to get projected
+    let pFree = free;
+    let pStrats = { ...strats };
     for (const s of staged) {
-      applyMove(free, strats, s.fromBucket, s.toBucket, s.amount, s.fromStrat, s.toStrat, -1);
+      const r = applyMove(pFree, pStrats, s.fromBucket, s.toBucket, s.amount, s.fromStrat, s.toStrat);
+      pFree = r.free;
+      pStrats = r.strats;
     }
-    return { curFree: Math.round(curFree * 100) / 100, curStrats, projFree: Math.round(free * 100) / 100, projStrats: strats as Record<string, number> };
+    return { curFree: Math.round(curFree * 100) / 100, curStrats, projFree: Math.round(pFree * 100) / 100, projStrats: pStrats as Record<string, number> };
   }, [capital, committed, staged]);
 
   function applyMove(
     free: number, strats: Record<string, number>,
     fromB: string, toB: string, amt: number,
-    fromS: string | null, toS: string | null, _dir: number,
-  ) {
-    const amount = amt;
-    if (fromB === "FREE_CASH") free -= amount;
-    if (toB === "FREE_CASH") free += amount;
-    if (fromB === "STRATEGY" && fromS) strats[fromS] = (strats[fromS] || 0) - amount;
-    if (toB === "STRATEGY" && toS) strats[toS] = (strats[toS] || 0) + amount;
+    fromS: string | null, toS: string | null,
+  ): { free: number; strats: Record<string, number> } {
+    const ns = { ...strats };
+    let f = free;
+    if (fromB === "FREE_CASH") f -= amt;
+    if (toB === "FREE_CASH") f += amt;
+    if (fromB === "STRATEGY" && fromS) ns[fromS] = (ns[fromS] || 0) - amt;
+    if (toB === "STRATEGY" && toS) ns[toS] = (ns[toS] || 0) + amt;
+    return { free: f, strats: ns };
   }
 
   // Validate against projected (post-staged) balances so chaining works
@@ -116,11 +122,11 @@ export default function CapitalPage() {
     let fromB = "", toB = "", fromS: string | null = null, toS: string | null = null;
     let label = "";
     switch (formType) {
-      case "deposit": fromB = "EXTERNAL"; toB = "FREE_CASH"; label = `Deposit ${fmtAbs(formAmount)}`; break;
-      case "withdraw": fromB = "FREE_CASH"; toB = "EXTERNAL"; label = `Withdraw ${fmtAbs(formAmount)}`; break;
-      case "allocate": fromB = "FREE_CASH"; toB = "STRATEGY"; toS = formTo; label = `Allocate ${fmtAbs(formAmount)} → ${formTo}`; break;
-      case "free": fromB = "STRATEGY"; toB = "FREE_CASH"; fromS = formFrom; label = `Free ${fmtAbs(formAmount)} ← ${formFrom}`; break;
-      case "transfer": fromB = "STRATEGY"; toB = "STRATEGY"; fromS = formFrom; toS = formTo; label = `Move ${fmtAbs(formAmount)} ${formFrom} → ${formTo}`; break;
+      case "deposit": fromB = "EXTERNAL"; toB = "FREE_CASH"; label = `${t("deposit")} ${fmtAbs(formAmount)}`; break;
+      case "withdraw": fromB = "FREE_CASH"; toB = "EXTERNAL"; label = `${t("withdraw")} ${fmtAbs(formAmount)}`; break;
+      case "allocate": fromB = "FREE_CASH"; toB = "STRATEGY"; toS = formTo; label = `${t("allocate")} ${fmtAbs(formAmount)} → ${formTo}`; break;
+      case "free": fromB = "STRATEGY"; toB = "FREE_CASH"; fromS = formFrom; label = `${t("free")} ${fmtAbs(formAmount)} ← ${formFrom}`; break;
+      case "transfer": fromB = "STRATEGY"; toB = "STRATEGY"; fromS = formFrom; toS = formTo; label = `${t("transfer")} ${fmtAbs(formAmount)} ${formFrom} → ${formTo}`; break;
     }
     setStaged((prev) => [...prev, { id: nextId, fromBucket: fromB, toBucket: toB, fromStrat: fromS, toStrat: toS, amount: amt, label }]);
     setNextId((n) => n + 1);
