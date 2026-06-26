@@ -209,12 +209,13 @@ export default function TradeComparePage() {
 
   const todayStr = ymd(new Date());
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const dayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  const dayNames = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
   const calendarDays = useMemo(() => {
     const firstDay = new Date(calYear, calMonth, 1);
     const lastDay = new Date(calYear, calMonth + 1, 0);
-    const startPad = firstDay.getDay();
+    // Monday-start: getDay() 0=Sun → 6, 1=Mon → 0
+    const startPad = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
     const days: { date: Date; kind: "shared" | "simOnly" | "liveOnly" | "none"; isToday: boolean }[] = [];
     for (let i = 0; i < startPad; i++) {
       days.push({ date: new Date(calYear, calMonth, -startPad + i + 1), kind: "none", isToday: false });

@@ -262,3 +262,41 @@ def close_series(
     
     db.commit()
     return SeriesCloseOut(closed=True, message=f"Series '{series.name}' closed")
+
+
+@router.delete("/series/{series_id}/strategies/{strategy_name}")
+def remove_strategy(
+    series_id: int,
+    strategy_name: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_user),
+) -> dict:
+    """Delete a strategy. Only allowed if no capital is allocated and no open fills remain."""
+    from sqlalchemy import select
+    from app.models.strategy import Strategy
+    from app.models.fill import Fill
+    from app.services.capital import strategy_base
+
+    series = db.get(Series, series_id)
+    if series is None or (series.user_id != user.id and user.role != "admin"):
+        raise HTTPException(status_code=404, detail="series not found")
+
+    st = db.execute(
+        select(Strategy).where(Strategy.series_id == series_id, Strategy.name_key == strategy_name)
+    ).scalar_one_or_none()
+    if st is None:
+        raise HTTPException(status_code=404, detail="strategy not found")
+
+    cap = strategy_base(db, series_id, st.id, None)
+    if cap > 0:
+        raise HTTPException(status_code=400, detail=f"Strategy has {cap} capital. Free it first.")
+
+    fills = db.execute(
+        select(Fill).where(Fill.series_id == series_id, Fill.strategy_id == st.id, Fill.voided_at.is_(None))
+    ).scalars().all()
+    if fills:
+        raise HTTPException(status_code=400, detail=f"Strategy has {len(fills)} fills. Void them first.")
+
+    db.delete(st)
+    db.commit()
+    return {"deleted": True, "strategy": strategy_name}

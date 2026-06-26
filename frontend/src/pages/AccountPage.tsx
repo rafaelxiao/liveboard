@@ -174,6 +174,21 @@ export default function AccountPage() {
     }
   };
 
+  const handleDeleteStrategy = async (nameKey: string) => {
+    if (!confirm(`${t("confirmDeleteStrategy")} '${nameKey}'?`)) return;
+    try {
+      await apiFetch(`/series/${seriesId}/strategies/${nameKey}`, { method: "DELETE" });
+      const [cap, mov] = await Promise.all([
+        apiFetch<SeriesCapital>(`/series/${seriesId}/capital`),
+        apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=100`),
+      ]);
+      setCapital(cap);
+      setCommitted(mov);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Failed");
+    }
+  };
+
   const handleClose = async () => {
     if (!confirm(t("confirmClose"))) return;
     setClosing(true);
@@ -237,6 +252,7 @@ export default function AccountPage() {
               <th className="text-right py-2 px-4 font-medium text-secondary">{t("netValue")}</th>
               <th className="text-right py-2 px-4 font-medium text-secondary">{t("returnPct")}</th>
               <th className="text-right py-2 px-4 font-medium text-secondary">{t("projected")}</th>
+              <th className="w-8"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
@@ -253,6 +269,15 @@ export default function AccountPage() {
                   <td className={`py-2 px-4 text-right font-mono ${retPct >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>{retPct >= 0 ? "+" : ""}{retPct.toFixed(1)}%</td>
                   <td className={`py-2 px-4 text-right font-mono ${diff !== 0 ? "text-accent" : "text-muted"}`}>
                     {fmtAbs(String(proj))}
+                  </td>
+                  <td className="py-2 px-2 text-center">
+                    <button
+                      onClick={() => handleDeleteStrategy(s.name_key)}
+                      className="text-[10px] text-pnl-loss hover:underline"
+                      title={t("deleteStrategy")}
+                    >
+                      ✕
+                    </button>
                   </td>
                 </tr>
               );
