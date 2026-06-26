@@ -190,6 +190,14 @@ export default function DashboardPage() {
                       ) : "—"}
                     </span>
                   </div>
+                  <div className="col-span-2 border-t border-border-subtle pt-2 flex gap-3 text-[11px]">
+                    <span className="text-secondary"
+                      role="button"
+                      onClick={(e) => { e.stopPropagation(); window.open(`${import.meta.env.BASE_URL}series/${s.id}/capital`, '_self'); }}
+                    >
+                      {t("dashboard:Capital")}
+                    </span>
+                  </div>
                 </div>
               </button>
             ))}
