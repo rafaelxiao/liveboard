@@ -19,6 +19,7 @@ function fmtAbs(v: string): string {
 
 interface StagedMove {
   id: number;
+  type: "move" | "delete_strategy";
   fromBucket: string;
   toBucket: string;
   fromStrat: string | null;
@@ -92,9 +93,13 @@ export default function AccountPage() {
     let pFree = free;
     let pStrats = { ...strats };
     for (const s of staged) {
-      const r = applyMove(pFree, pStrats, s.fromBucket, s.toBucket, s.amount, s.fromStrat, s.toStrat);
-      pFree = r.free;
-      pStrats = r.strats;
+      if (s.type === "delete_strategy" && s.fromStrat) {
+        delete pStrats[s.fromStrat];
+      } else if (s.type === "move") {
+        const r = applyMove(pFree, pStrats, s.fromBucket, s.toBucket, s.amount, s.fromStrat, s.toStrat);
+        pFree = r.free;
+        pStrats = r.strats;
+      }
     }
     return { curFree: Math.round(curFree * 100) / 100, curStrats, projFree: Math.round(pFree * 100) / 100, projStrats: pStrats as Record<string, number> };
   }, [capital, committed, staged]);
@@ -147,7 +152,7 @@ export default function AccountPage() {
       case "transfer": fromB = "STRATEGY"; toB = "STRATEGY"; fromS = formFrom; toS = formTo; label = `${t("transfer")} ${fmtAbs(formAmount)} ${formFrom} → ${formTo}`; break;
       case "create_strategy": fromB = "FREE_CASH"; toB = "STRATEGY"; toS = formTo; label = `${t("createStrategy")}: ${formTo}`; break;
     }
-    setStaged((prev) => [...prev, { id: nextId, fromBucket: fromB, toBucket: toB, fromStrat: fromS, toStrat: toS, amount: amt, label }]);
+    setStaged((prev) => [...prev, { id: nextId, type: "move", fromBucket: fromB, toBucket: toB, fromStrat: fromS, toStrat: toS, amount: amt, label }]);
     setNextId((n) => n + 1);
     setFormAmount("");
   };
@@ -161,19 +166,30 @@ export default function AccountPage() {
     setCommitting(true);
     setCommitOk("");
     try {
-      await apiFetch(`/series/${seriesId}/fund-movements`, {
-        method: "POST",
-        body: staged.map((s, i) => ({
-          client_movement_id: `ui-${Date.now()}-${i}`,
-          ts: new Date().toISOString(),
-          currency: "CNY",
-          amount: s.amount.toFixed(2),
-          from_bucket: s.fromBucket,
-          to_bucket: s.toBucket,
-          from_strategy: s.fromStrat,
-          to_strategy: s.toStrat,
-        })),
-      });
+      // Commit fund movements
+      const moves = staged.filter((s) => s.type === "move");
+      if (moves.length > 0) {
+        await apiFetch(`/series/${seriesId}/fund-movements`, {
+          method: "POST",
+          body: moves.map((s, i) => ({
+            client_movement_id: `ui-${Date.now()}-${i}`,
+            ts: new Date().toISOString(),
+            currency: "CNY",
+            amount: s.amount.toFixed(2),
+            from_bucket: s.fromBucket,
+            to_bucket: s.toBucket,
+            from_strategy: s.fromStrat,
+            to_strategy: s.toStrat,
+          })),
+        });
+      }
+      // Commit strategy deletions
+      const dels = staged.filter((s) => s.type === "delete_strategy");
+      for (const d of dels) {
+        if (d.fromStrat) {
+          await apiFetch(`/series/${seriesId}/strategies/${d.fromStrat}`, { method: "DELETE" });
+        }
+      }
       setCommitOk("Committed");
       setStaged([]);
       const [cap, mov] = await Promise.all([
@@ -199,29 +215,9 @@ export default function AccountPage() {
     }
   };
 
-  const handleDeleteStrategy = async (nameKey: string) => {
-    if (!confirm(`${t("confirmDeleteStrategy")} '${nameKey}'?`)) return;
-    try {
-      await apiFetch(`/series/${seriesId}/strategies/${nameKey}`, { method: "DELETE" });
-      const [cap, mov] = await Promise.all([
-        apiFetch<SeriesCapital>(`/series/${seriesId}/capital`),
-        apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=100`),
-      ]);
-      setCapital(cap);
-      setCommitted(mov);
-      // Refresh strat creation times
-      const stratAlloc2 = new Map<string, string>();
-      for (const m of mov) {
-        if (m.to_bucket === "STRATEGY" && m.to_strategy) {
-          if (!stratAlloc2.has(m.to_strategy) || m.ts < stratAlloc2.get(m.to_strategy)!) {
-            stratAlloc2.set(m.to_strategy, m.ts);
-          }
-        }
-      }
-      setStratCreationTimes(new Set(stratAlloc2.keys()));
-    } catch (e: unknown) {
-      alert(e instanceof Error ? e.message : "Failed");
-    }
+  const handleDeleteStrategy = (nameKey: string) => {
+    setStaged((prev) => [...prev, { id: nextId, type: "delete_strategy", fromBucket: "", toBucket: "", fromStrat: nameKey, toStrat: null, amount: 0, label: `${t("deletedStrategy")}: ${nameKey}` }]);
+    setNextId((n) => n + 1);
   };
 
   const handleClose = async () => {
