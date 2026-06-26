@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { apiFetch } from "../api/client";
 import type { SeriesCapital, FundMovement } from "../lib/types";
 import { useSeriesList } from "../state/useSeries";
@@ -26,6 +27,7 @@ interface StagedMove {
 }
 
 export default function CapitalPage() {
+  const { t } = useTranslation("capital");
   const { id } = useParams<{ id: string }>();
   const seriesId = Number(id);
   const { data: seriesList } = useSeriesList();
@@ -88,10 +90,11 @@ export default function CapitalPage() {
     if (toB === "STRATEGY" && toS) strats[toS] = (strats[toS] || 0) + amount;
   }
 
-  const canWithdraw = (balances.curFree ?? 0) >= parseFloat(formAmount || "0");
-  const canAllocate = (balances.curFree ?? 0) >= parseFloat(formAmount || "0");
-  const canFree = formFrom ? (balances.curStrats?.[formFrom] || 0) >= parseFloat(formAmount || "0") : false;
-  const canTransfer = formFrom && formTo ? (balances.curStrats?.[formFrom] || 0) >= parseFloat(formAmount || "0") : false;
+  // Validate against projected (post-staged) balances so chaining works
+  const canWithdraw = (balances.projFree ?? 0) >= parseFloat(formAmount || "0");
+  const canAllocate = (balances.projFree ?? 0) >= parseFloat(formAmount || "0");
+  const canFree = formFrom ? (balances.projStrats?.[formFrom] || 0) >= parseFloat(formAmount || "0") : false;
+  const canTransfer = formFrom && formTo ? (balances.projStrats?.[formFrom] || 0) >= parseFloat(formAmount || "0") : false;
 
   const validateAdd = (): string | null => {
     const amt = parseFloat(formAmount);
@@ -169,29 +172,29 @@ export default function CapitalPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <h2 className="text-lg font-semibold text-primary">{seriesName} · Fund Management</h2>
+      <h2 className="text-lg font-semibold text-primary">{seriesName} · {t("title")}</h2>
 
       {/* Balances */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="rounded-lg border border-border-default bg-surface p-3">
-          <div className="text-[10px] text-secondary uppercase">Account Total</div>
+          <div className="text-[10px] text-secondary uppercase">{t("accountTotal")}</div>
           <div className="text-base font-mono font-semibold text-primary mt-0.5">{fmtAbs(capital.account_total)}</div>
         </div>
         <div className="rounded-lg border border-border-default bg-surface p-3">
-          <div className="text-[10px] text-secondary uppercase">Free Cash</div>
+          <div className="text-[10px] text-secondary uppercase">{t("freeCash")}</div>
           <div className="text-base font-mono font-semibold text-primary mt-0.5">
             {fmtAbs(String(balances.curFree))}
             {staged.length > 0 && (
-              <span className="text-[10px] text-muted ml-1">→ {fmtAbs(String(balances.projFree))}</span>
+              <span className="text-[10px] text-muted ml-1">→ {fmtAbs(String(balances.projFree ?? 0))}</span>
             )}
           </div>
         </div>
         <div className="rounded-lg border border-border-default bg-surface p-3">
-          <div className="text-[10px] text-secondary uppercase">Strategies</div>
+          <div className="text-[10px] text-secondary uppercase">{t("strategies")}</div>
           <div className="text-base font-mono font-semibold text-primary mt-0.5">{capital.strategies.length}</div>
         </div>
         <div className="rounded-lg border border-border-default bg-surface p-3">
-          <div className="text-[10px] text-secondary uppercase">Total Net Value</div>
+          <div className="text-[10px] text-secondary uppercase">{t("totalNetValue")}</div>
           <div className="text-base font-mono font-semibold text-primary mt-0.5">
             {fmtAbs(String(parseFloat(capital.free_cash) + capital.strategies.reduce((s, st) => s + parseFloat(st.net_value), 0)))}
           </div>
@@ -201,17 +204,17 @@ export default function CapitalPage() {
       {/* Strategy allocations */}
       <div className="rounded-lg border border-border-default overflow-hidden">
         <div className="px-4 py-2.5 border-b border-border-default bg-surface-2">
-          <h3 className="text-sm font-medium text-primary">Strategy Allocations</h3>
+          <h3 className="text-sm font-medium text-primary">{t("strategyAllocations")}</h3>
         </div>
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border-default bg-surface-2/50">
-              <th className="text-left py-2 px-4 font-medium text-secondary">Strategy</th>
-              <th className="text-right py-2 px-4 font-medium text-secondary">Capital</th>
-              <th className="text-right py-2 px-4 font-medium text-secondary">PnL</th>
-              <th className="text-right py-2 px-4 font-medium text-secondary">Net Value</th>
-              <th className="text-right py-2 px-4 font-medium text-secondary">Return %</th>
-              <th className="text-right py-2 px-4 font-medium text-secondary">Projected</th>
+              <th className="text-left py-2 px-4 font-medium text-secondary">{t("strategy")}</th>
+              <th className="text-right py-2 px-4 font-medium text-secondary">{t("capital")}</th>
+              <th className="text-right py-2 px-4 font-medium text-secondary">{t("pnl")}</th>
+              <th className="text-right py-2 px-4 font-medium text-secondary">{t("netValue")}</th>
+              <th className="text-right py-2 px-4 font-medium text-secondary">{t("returnPct")}</th>
+              <th className="text-right py-2 px-4 font-medium text-secondary">{t("projected")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
@@ -227,7 +230,7 @@ export default function CapitalPage() {
                   <td className="py-2 px-4 text-right font-mono text-primary">{fmtAbs(s.net_value)}</td>
                   <td className={`py-2 px-4 text-right font-mono ${retPct >= 0 ? "text-pnl-gain" : "text-pnl-loss"}`}>{retPct >= 0 ? "+" : ""}{retPct.toFixed(1)}%</td>
                   <td className={`py-2 px-4 text-right font-mono ${diff !== 0 ? "text-accent" : "text-muted"}`}>
-                    {diff !== 0 ? fmtAbs(String(proj)) : "—"}
+                    {fmtAbs(String(proj))}
                   </td>
                 </tr>
               );
@@ -238,26 +241,26 @@ export default function CapitalPage() {
 
       {/* Add movement form */}
       <div className="rounded-lg border border-border-default bg-surface p-5">
-        <h3 className="text-sm font-medium text-primary mb-3">New Movement</h3>
+        <h3 className="text-sm font-medium text-primary mb-3">{t("newMovement")}</h3>
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-xs text-secondary">
-            Type
+            {t("type")}
             <select
               value={formType}
               onChange={(e) => { setFormType(e.target.value); setFormFrom(""); setFormTo(""); setFormError(""); }}
               className="mt-1 block h-8 rounded border border-border-default bg-surface px-2 text-xs text-primary w-32"
             >
-              <option value="deposit">Deposit</option>
-              <option value="withdraw">Withdraw</option>
-              <option value="allocate">Allocate → Strategy</option>
-              <option value="free">Free ← Strategy</option>
-              <option value="transfer">Strategy → Strategy</option>
+              <option value="deposit">{t("deposit")}</option>
+              <option value="withdraw">{t("withdraw")}</option>
+              <option value="allocate">{t("allocate")}</option>
+              <option value="free">{t("free")}</option>
+              <option value="transfer">{t("transfer")}</option>
             </select>
           </label>
 
           {(formType === "free" || formType === "transfer") && (
             <label className="text-xs text-secondary">
-              From
+              {t("from")}
               <select value={formFrom} onChange={(e) => { setFormFrom(e.target.value); setFormError(""); }} className="mt-1 block h-8 rounded border border-border-default bg-surface px-2 text-xs text-primary w-36">
                 <option value="">—</option>
                 {stratNames.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -267,7 +270,7 @@ export default function CapitalPage() {
 
           {(formType === "allocate" || formType === "transfer") && (
             <label className="text-xs text-secondary">
-              To
+              {t("to")}
               <select value={formTo} onChange={(e) => { setFormTo(e.target.value); setFormError(""); }} className="mt-1 block h-8 rounded border border-border-default bg-surface px-2 text-xs text-primary w-36">
                 <option value="">—</option>
                 {stratNames.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -276,7 +279,7 @@ export default function CapitalPage() {
           )}
 
           <label className="text-xs text-secondary">
-            Amount
+            {t("amount")}
             <input
               type="number" value={formAmount} onChange={(e) => { setFormAmount(e.target.value); setFormError(""); }}
               placeholder="0.00"
@@ -289,15 +292,15 @@ export default function CapitalPage() {
             disabled={!!validateAdd()}
             className="h-8 rounded-md bg-accent text-white px-4 text-xs font-medium hover:opacity-90 disabled:opacity-50"
           >
-            Stage
+            {t("stage")}
           </button>
         </div>
         {formType !== "deposit" && (
           <div className="mt-2 text-[10px] text-muted">
-            {formType === "withdraw" && `Available: ${fmtAbs(String(balances.curFree))}`}
-            {formType === "allocate" && `Available: ${fmtAbs(String(balances.curFree))}`}
-            {formType === "free" && formFrom && `Available: ${fmtAbs(String(balances.curStrats?.[formFrom] || 0))}`}
-            {formType === "transfer" && formFrom && `Available: ${fmtAbs(String(balances.curStrats?.[formFrom] || 0))}`}
+            {formType === "withdraw" && `${t("available")}: ${fmtAbs(String(balances.projFree ?? 0))}`}
+            {formType === "allocate" && `${t("available")}: ${fmtAbs(String(balances.projFree ?? 0))}`}
+            {formType === "free" && formFrom && `${t("available")}: ${fmtAbs(String(balances.projStrats?.[formFrom] || 0))}`}
+            {formType === "transfer" && formFrom && `${t("available")}: ${fmtAbs(String(balances.projStrats?.[formFrom] || 0))}`}
           </div>
         )}
         {formError && <p className="mt-2 text-xs text-pnl-loss">{formError}</p>}
@@ -307,15 +310,15 @@ export default function CapitalPage() {
       {staged.length > 0 && (
         <div className="rounded-lg border border-accent/30 bg-accent/5 overflow-hidden">
           <div className="px-4 py-2.5 border-b border-accent/20 flex items-center justify-between">
-            <h3 className="text-sm font-medium text-accent">Staged Changes ({staged.length})</h3>
-            <span className="text-[10px] text-muted">Not yet persisted</span>
+            <h3 className="text-sm font-medium text-accent">{t("stagedChanges")} ({staged.length})</h3>
+            <span className="text-[10px] text-muted">{t("notYetPersisted")}</span>
           </div>
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border-default">
                 <th className="text-left py-2 px-3 font-medium text-secondary w-8">#</th>
-                <th className="text-left py-2 px-3 font-medium text-secondary">Action</th>
-                <th className="text-right py-2 px-3 font-medium text-secondary">Amount</th>
+                <th className="text-left py-2 px-3 font-medium text-secondary">{t("action")}</th>
+                <th className="text-right py-2 px-3 font-medium text-secondary">{t("amount")}</th>
                 <th className="text-right py-2 px-3 font-medium text-secondary w-16"></th>
               </tr>
             </thead>
@@ -344,26 +347,26 @@ export default function CapitalPage() {
               disabled={committing}
               className="rounded-md bg-accent text-white px-6 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50"
             >
-              {committing ? "Committing..." : "Commit All Changes"}
+              {committing ? t("committing") : t("commitAll")}
             </button>
           </div>
         </div>
       )}
-      {commitOk && <p className="text-xs text-pnl-gain text-center">{commitOk}</p>}
+      {commitOk && <p className="text-xs text-pnl-gain text-center">{t("committed")}</p>}
 
       {/* Committed history */}
       <div className="rounded-lg border border-border-default overflow-hidden">
         <div className="px-4 py-2.5 border-b border-border-default bg-surface-2">
-          <h3 className="text-sm font-medium text-primary">Recent Movements</h3>
+          <h3 className="text-sm font-medium text-primary">{t("recentMovements")}</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border-default bg-surface-2/50">
-                <th className="text-left py-2 px-3 font-medium text-secondary">Time</th>
-                <th className="text-left py-2 px-3 font-medium text-secondary">From</th>
-                <th className="text-left py-2 px-3 font-medium text-secondary">To</th>
-                <th className="text-right py-2 px-3 font-medium text-secondary">Amount</th>
+                <th className="text-left py-2 px-3 font-medium text-secondary">{t("time")}</th>
+                <th className="text-left py-2 px-3 font-medium text-secondary">{t("from")}</th>
+                <th className="text-left py-2 px-3 font-medium text-secondary">{t("to")}</th>
+                <th className="text-right py-2 px-3 font-medium text-secondary">{t("amount")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
