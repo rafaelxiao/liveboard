@@ -26,7 +26,7 @@ interface StagedMove {
   label: string;
 }
 
-export default function CapitalPage() {
+export default function AccountPage() {
   const { t } = useTranslation("capital");
   const { id } = useParams<{ id: string }>();
   const seriesId = Number(id);
@@ -47,6 +47,8 @@ export default function CapitalPage() {
   const [formError, setFormError] = useState("");
   const [committing, setCommitting] = useState(false);
   const [commitOk, setCommitOk] = useState("");
+  const [closing, setClosing] = useState(false);
+  const [closeError, setCloseError] = useState("");
 
   useEffect(() => {
     if (!seriesId) return;
@@ -171,6 +173,19 @@ export default function CapitalPage() {
     }
   };
 
+  const handleClose = async () => {
+    if (!confirm(t("confirmClose"))) return;
+    setClosing(true);
+    setCloseError("");
+    try {
+      await apiFetch(`/series/${seriesId}`, { method: "DELETE" });
+      window.location.href = `${import.meta.env.BASE_URL}dashboard`;
+    } catch (e: unknown) {
+      setCloseError(e instanceof Error ? e.message : "Failed to close");
+      setClosing(false);
+    }
+  };
+
   if (loading) return <div className="p-8 text-secondary">Loading...</div>;
   if (!capital) return <div className="p-8 text-secondary">No data</div>;
 
@@ -179,6 +194,24 @@ export default function CapitalPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       <h2 className="text-lg font-semibold text-primary">{seriesName} · {t("title")}</h2>
+
+      {/* Close section */}
+      <div className="rounded-lg border border-border-default bg-surface p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-sm font-medium text-primary">{t("closeAccount")}</span>
+            <p className="text-[11px] text-muted mt-0.5">{t("closeHint")}</p>
+          </div>
+          <button
+            onClick={handleClose}
+            disabled={closing}
+            className="rounded-md border border-pnl-loss/30 bg-pnl-loss/10 text-pnl-loss px-3 py-1.5 text-xs font-medium hover:bg-pnl-loss/20 disabled:opacity-50"
+          >
+            {closing ? "..." : t("closeAccount")}
+          </button>
+        </div>
+        {closeError && <p className="mt-2 text-xs text-pnl-loss">{closeError}</p>}
+      </div>
 
       {/* Balances */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

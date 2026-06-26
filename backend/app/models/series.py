@@ -23,3 +23,4 @@ class Series(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     validation_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True, comment="Per-series validation thresholds (max_leverage_ratio, max_drawdown_ratio, require_capital)")
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)

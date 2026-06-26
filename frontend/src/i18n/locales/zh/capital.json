@@ -1,5 +1,5 @@
 {
-  "title": "资金管理",
+  "title": "账户",
   "accountTotal": "账户总额",
   "freeCash": "空闲资金",
   "strategies": "策略数",
@@ -30,5 +30,8 @@
   "committing": "提交中...",
   "committed": "已提交",
   "recentMovements": "近期变动",
-  "time": "时间"
+  "time": "时间",
+  "closeAccount": "注销账户",
+  "closeHint": "请先释放所有策略资金并平仓。分享链接将被吊销。",
+  "confirmClose": "确定要永久注销此账户？此操作不可撤销。"
 }

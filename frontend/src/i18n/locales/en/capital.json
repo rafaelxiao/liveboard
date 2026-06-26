@@ -1,5 +1,5 @@
 {
-  "title": "Fund Management",
+  "title": "Account",
   "accountTotal": "Account Total",
   "freeCash": "Free Cash",
   "strategies": "Strategies",
@@ -30,5 +30,8 @@
   "committing": "Committing...",
   "committed": "Committed",
   "recentMovements": "Recent Movements",
-  "time": "Time"
+  "time": "Time",
+  "closeAccount": "Close Account",
+  "closeHint": "Free all strategy capital and close positions first. Share links will be revoked.",
+  "confirmClose": "Permanently close this account? This cannot be undone."
 }

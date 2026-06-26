@@ -158,3 +158,9 @@ class SeriesCapitalOut(BaseModel):
     free_cash: str
     strategies: list[StrategyCapital]
     account_total: str
+
+
+class SeriesCloseOut(BaseModel):
+    """Result of closing/deleting a series."""
+    closed: bool
+    message: str

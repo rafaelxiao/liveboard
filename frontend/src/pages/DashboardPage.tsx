@@ -19,6 +19,74 @@ import { SkeletonCard, SkeletonChart } from "../components/SkeletonCard";
 import { Layers, Hash, ArrowRight } from "lucide-react";
 import { formatCurrency } from "../lib/format";
 import ShareDialog from "../components/ShareDialog";
+import { createSeries } from "../state/useSeriesCreate";
+
+function CreateSeriesButton({ onCreated }: { onCreated: () => void }) {
+  const { t } = useTranslation("dashboard");
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [tag, setTag] = useState("live");
+  const [currency, setCurrency] = useState("CNY");
+  const [tz] = useState("Asia/Shanghai");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleCreate = async () => {
+    if (!name.trim()) { setError("Name is required"); return; }
+    setSubmitting(true);
+    setError("");
+    try {
+      await createSeries({ name: name.trim(), tag: tag as "live" | "sim", base_currency: currency, session_tz: tz });
+      setName("");
+      setOpen(false);
+      onCreated();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="rounded-md border border-border-default bg-surface px-3 py-1.5 text-xs text-secondary hover:text-primary hover:border-accent">
+        + {t("New series")}
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-accent/30 bg-surface p-4 space-y-3">
+      <h3 className="text-sm font-medium text-primary">{t("New series")}</h3>
+      <div className="flex flex-wrap gap-3">
+        <label className="text-xs text-secondary flex-1 min-w-[120px]">
+          {t("Name")}
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="my-series" className="mt-1 block w-full rounded border border-border-default bg-surface px-2 py-1.5 text-xs text-primary" />
+        </label>
+        <label className="text-xs text-secondary">
+          {t("Tag")}
+          <select value={tag} onChange={(e) => setTag(e.target.value)} className="mt-1 block rounded border border-border-default bg-surface px-2 py-1.5 text-xs text-primary">
+            <option value="live">live</option>
+            <option value="sim">sim</option>
+          </select>
+        </label>
+        <label className="text-xs text-secondary">
+          {t("Currency")}
+          <input value={currency} onChange={(e) => setCurrency(e.target.value)} className="mt-1 block w-20 rounded border border-border-default bg-surface px-2 py-1.5 text-xs text-primary" />
+        </label>
+      </div>
+      {error && <p className="text-xs text-pnl-loss">{error}</p>}
+      <div className="flex gap-2">
+        <button onClick={handleCreate} disabled={submitting} className="rounded-md bg-accent text-white px-4 py-1.5 text-xs font-medium disabled:opacity-50">
+          {submitting ? "..." : t("Create")}
+        </button>
+        <button onClick={() => setOpen(false)} className="rounded-md border border-border-default px-3 py-1.5 text-xs text-secondary">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const { t } = useTranslation(["dashboard", "common"]);
@@ -38,7 +106,7 @@ export default function DashboardPage() {
   const effectiveParams = { ...params, trade_grouping: tradeGrouping };
 
   const { data, isLoading, isError, refetch } = useMetrics(effectiveParams);
-  const { data: seriesList } = useSeriesList();
+  const { data: seriesList, refetch: refetchSeries } = useSeriesList();
   const [equityMode, setEquityMode] = useState<"absolute" | "indexed">("absolute");
   const [drawdownMode, setDrawdownMode] = useState<"absolute" | "indexed">("absolute");
 
@@ -85,7 +153,10 @@ export default function DashboardPage() {
   if (!params.series) {
     return (
       <div className="space-y-4">
-        <h1 className="text-xl font-semibold text-primary">{t("Dashboard", { ns: "common" })}</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-primary">{t("Dashboard", { ns: "common" })}</h1>
+          <CreateSeriesButton onCreated={refetchSeries} />
+        </div>
         {seriesList && seriesList.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {seriesList.map((s) => (
@@ -193,10 +264,10 @@ export default function DashboardPage() {
                   <div className="col-span-2 border-t border-border-subtle pt-2">
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-border-default text-[11px] text-secondary hover:text-primary hover:border-accent cursor-pointer"
                       role="button"
-                      onClick={(e) => { e.stopPropagation(); window.open(`${import.meta.env.BASE_URL}series/${s.id}/capital`, '_self'); }}
+                      onClick={(e) => { e.stopPropagation(); window.open(`${import.meta.env.BASE_URL}series/${s.id}/account`, '_self'); }}
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      {t("dashboard:Capital")}
+                      {t("dashboard:Account")}
                     </span>
                   </div>
                 </div>

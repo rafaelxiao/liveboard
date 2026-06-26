@@ -84,7 +84,7 @@ def get_owned_series(session: Session, user_id: int, series_id: int) -> Series:
 
 def list_series(session: Session, *, user_id: int) -> list[SeriesOut]:
     rows = session.scalars(
-        select(Series).where(Series.user_id == user_id).order_by(Series.id)
+        select(Series).where(Series.user_id == user_id, Series.voided_at.is_(None)).order_by(Series.id)
     ).all()
 
     series_ids = [s.id for s in rows]
