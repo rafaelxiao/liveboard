@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from decimal import Decimal
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_api_user, get_current_user, get_user
+from app.core.deps import get_current_user, get_user
 from app.db import get_db
 from app.models.series import Series
 from app.models.user import User
@@ -23,7 +23,7 @@ router = APIRouter(tags=["series"])
 def post_series(
     body: SeriesCreateIn,
     db: Session = Depends(get_db),
-    user: User = Depends(get_api_user),
+    user: User = Depends(get_user),
 ) -> dict:
     series_id = create_series(db, user_id=user.id, data=body)
     db.commit()
