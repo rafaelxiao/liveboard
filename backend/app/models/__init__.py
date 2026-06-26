@@ -6,5 +6,6 @@ from app.models.fx_rate import FxRate  # noqa: F401
 from app.models.ingestion_batch import IngestionBatch  # noqa: F401
 from app.models.instrument import Instrument  # noqa: F401
 from app.models.series import Series  # noqa: F401
+from app.models.share_link import ShareLink  # noqa: F401
 from app.models.strategy import Strategy  # noqa: F401
 from app.models.user import User  # noqa: F401
