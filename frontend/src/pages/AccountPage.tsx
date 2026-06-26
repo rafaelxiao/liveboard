@@ -170,8 +170,8 @@ export default function AccountPage() {
     setCommitting(true);
     setCommitOk("");
     try {
-      // Commit fund movements
-      const moves = staged.filter((s) => s.type === "move");
+      // Commit fund movements (skip 0-amount ones)
+      const moves = staged.filter((s) => s.type === "move" && s.amount > 0);
       if (moves.length > 0) {
         await apiFetch(`/series/${seriesId}/fund-movements`, {
           method: "POST",
