@@ -106,6 +106,12 @@ export default function SeriesListPage() {
                     >
                       {t("dashboard:Open")}
                     </Link>
+                    <Link
+                      to={`/series/${s.id}/capital`}
+                      className="text-accent hover:underline"
+                    >
+                      {t("dashboard:Capital")}
+                    </Link>
                     <button
                       type="button"
                       onClick={() => toggleCompare(s.id)}
