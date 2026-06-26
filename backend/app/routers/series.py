@@ -218,6 +218,7 @@ def close_series(
     user: User = Depends(get_user),
 ) -> SeriesCloseOut:
     """Close/decommission a series. Voids series and associated share links."""
+    from datetime import datetime, timezone
     from sqlalchemy import select
     from app.models.share_link import ShareLink
 
@@ -227,8 +228,8 @@ def close_series(
 
     series.voided_at = datetime.now(timezone.utc)
 
-    for sl in db.scalars(select(ShareLink).where(ShareLink.series_id == series_id, ShareLink.voided_at.is_(None))).all():
-        sl.voided_at = datetime.now(timezone.utc)
+    for sl in db.scalars(select(ShareLink).where(ShareLink.series_id == series_id, ShareLink.revoked_at.is_(None))).all():
+        sl.revoked_at = datetime.now(timezone.utc)
 
     db.commit()
     return SeriesCloseOut(closed=True, message=f"Series '{series.name}' closed")
