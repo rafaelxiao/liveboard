@@ -38,5 +38,6 @@
   "deleteStrategy": "删除策略",
   "confirmDeleteStrategy": "确定要删除策略",
   "createdStrategy": "创建策略",
-  "deletedStrategy": "删除策略"
+  "deletedStrategy": "删除策略",
+  "newStrategy": "新"
 }

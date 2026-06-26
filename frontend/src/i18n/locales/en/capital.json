@@ -38,5 +38,6 @@
   "deleteStrategy": "Delete strategy",
   "confirmDeleteStrategy": "Delete strategy",
   "createdStrategy": "Created strategy",
-  "deletedStrategy": "Deleted strategy"
+  "deletedStrategy": "Deleted strategy",
+  "newStrategy": "new"
 }

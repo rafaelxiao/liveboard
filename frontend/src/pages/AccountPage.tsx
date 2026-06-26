@@ -36,7 +36,7 @@ export default function AccountPage() {
 
   const [capital, setCapital] = useState<SeriesCapital | null>(null);
   const [committed, setCommitted] = useState<FundMovement[]>([]);
-  const [lifecycleEvents, setLifecycleEvents] = useState<{ ts: string; label: string; type: "created" | "deleted" }[]>([]);
+  const [stratCreationTimes, setStratCreationTimes] = useState<Set<string>>(new Set());
   const [staged, setStaged] = useState<StagedMove[]>([]);
   const [loading, setLoading] = useState(true);
   const [nextId, setNextId] = useState(1);
@@ -71,11 +71,7 @@ export default function AccountPage() {
             }
           }
         }
-        const events: { ts: string; label: string; type: "created" | "deleted" }[] = [];
-        for (const [name, ts] of stratFirstAlloc) {
-          events.push({ ts, label: `${t("createdStrategy")}: ${name}`, type: "created" as const });
-        }
-        setLifecycleEvents(events);
+        setStratCreationTimes(new Set(stratFirstAlloc.keys()));
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -179,24 +175,14 @@ export default function AccountPage() {
         })),
       });
       setCommitOk("Committed");
-      // Detect new strategies created by allocation
-      const prevStrats = new Set(capital?.strategies.map((s) => s.name_key) ?? []);
       setStaged([]);
       const [cap, mov] = await Promise.all([
         apiFetch<SeriesCapital>(`/series/${seriesId}/capital`),
         apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=100`),
       ]);
-      const newStrats = cap.strategies.filter((s) => !prevStrats.has(s.name_key));
-      if (newStrats.length > 0) {
-        setLifecycleEvents((prev) => [...prev, ...newStrats.map((s) => ({
-          ts: new Date().toISOString(),
-          label: `${t("createdStrategy")}: ${s.name_key}`,
-          type: "created" as const,
-        }))]);
-      }
       setCapital(cap);
       setCommitted(mov);
-      // Refresh lifecycle events from allocations
+      // Track strategy creation times from allocations
       const stratAlloc = new Map<string, string>();
       for (const m of mov) {
         if (m.to_bucket === "STRATEGY" && m.to_strategy) {
@@ -205,11 +191,7 @@ export default function AccountPage() {
           }
         }
       }
-      setLifecycleEvents((prev) => {
-        const del = prev.filter((e) => e.type === "deleted");
-        const created: { ts: string; label: string; type: "created" }[] = Array.from(stratAlloc.entries()).map(([name, ts]) => ({ ts, label: `${t("createdStrategy")}: ${name}`, type: "created" }));
-        return [...created, ...del] as { ts: string; label: string; type: "created" | "deleted" }[];
-      });
+      setStratCreationTimes(new Set(stratAlloc.keys()));
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : "Commit failed");
     } finally {
@@ -221,13 +203,22 @@ export default function AccountPage() {
     if (!confirm(`${t("confirmDeleteStrategy")} '${nameKey}'?`)) return;
     try {
       await apiFetch(`/series/${seriesId}/strategies/${nameKey}`, { method: "DELETE" });
-      setLifecycleEvents((prev) => [...prev, { ts: new Date().toISOString(), label: `${t("deletedStrategy")}: ${nameKey}`, type: "deleted" }]);
       const [cap, mov] = await Promise.all([
         apiFetch<SeriesCapital>(`/series/${seriesId}/capital`),
         apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=100`),
       ]);
       setCapital(cap);
       setCommitted(mov);
+      // Refresh strat creation times
+      const stratAlloc2 = new Map<string, string>();
+      for (const m of mov) {
+        if (m.to_bucket === "STRATEGY" && m.to_strategy) {
+          if (!stratAlloc2.has(m.to_strategy) || m.ts < stratAlloc2.get(m.to_strategy)!) {
+            stratAlloc2.set(m.to_strategy, m.ts);
+          }
+        }
+      }
+      setStratCreationTimes(new Set(stratAlloc2.keys()));
     } catch (e: unknown) {
       alert(e instanceof Error ? e.message : "Failed");
     }
@@ -476,35 +467,22 @@ export default function AccountPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {[...committed.slice(0, 40).map((m) => ({ type: "movement" as const, ts: m.ts, data: m })),
-                ...lifecycleEvents.slice(0, 20).map((e) => ({ type: "lifecycle" as const, ts: e.ts, data: e }))]
-                .sort((a, b) => {
-                  const dt = new Date(b.ts).getTime() - new Date(a.ts).getTime();
-                  if (dt !== 0) return dt;
-                  // lifecycle events after movements at same timestamp
-                  return a.type === "lifecycle" ? 1 : -1;
-                })
-                .slice(0, 40)
-                .map((entry, i) => {
-                  if (entry.type === "lifecycle") {
-                    return (
-                      <tr key={`lc-${i}`} className="hover:bg-surface-2/50 bg-accent/5">
-                        <td className="py-1.5 px-3 text-secondary whitespace-nowrap">{entry.ts.slice(0, 19).replace("T", " ")}</td>
-                        <td className="py-1.5 px-3 text-accent" colSpan={2}>{entry.data.label}</td>
-                        <td className="py-1.5 px-3 text-right font-mono text-muted">—</td>
-                      </tr>
-                    );
-                  }
-                  const m = entry.data;
-                  return (
-                    <tr key={`m-${i}`} className="hover:bg-surface-2/50">
-                      <td className="py-1.5 px-3 text-secondary whitespace-nowrap">{m.ts.slice(0, 19).replace("T", " ")}</td>
-                      <td className="py-1.5 px-3 text-secondary">{m.from_bucket}{m.from_strategy ? ` — ${m.from_strategy}` : ""}</td>
-                      <td className="py-1.5 px-3 text-secondary">{m.to_bucket}{m.to_strategy ? ` — ${m.to_strategy}` : ""}</td>
-                      <td className="py-1.5 px-3 text-right font-mono text-primary">{fmtAbs(m.amount)}</td>
-                    </tr>
-                  );
-                })}
+              {committed.slice(0, 40).map((m, i) => {
+                const isNewStrat = m.to_bucket === "STRATEGY" && m.to_strategy && stratCreationTimes.has(m.to_strategy);
+                return (
+                  <tr key={i} className={`hover:bg-surface-2/50 ${isNewStrat ? "bg-accent/5" : ""}`}>
+                    <td className="py-1.5 px-3 text-secondary whitespace-nowrap">{m.ts.slice(0, 19).replace("T", " ")}</td>
+                    <td className="py-1.5 px-3 text-secondary">
+                      {m.from_bucket}{m.from_strategy ? ` — ${m.from_strategy}` : ""}
+                    </td>
+                    <td className="py-1.5 px-3 text-secondary">
+                      {m.to_bucket}{m.to_strategy ? ` — ${m.to_strategy}` : ""}
+                      {isNewStrat && <span className="ml-1.5 text-[10px] text-accent font-medium">{t("newStrategy")}</span>}
+                    </td>
+                    <td className="py-1.5 px-3 text-right font-mono text-primary">{fmtAbs(m.amount)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
