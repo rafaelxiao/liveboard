@@ -23,6 +23,7 @@
   "allocate": "Allocate → Strategy",
   "free": "Free ← Strategy",
   "transfer": "Strategy → Strategy",
+  "createStrategy": "Create Strategy",
   "stagedChanges": "Staged Changes",
   "notYetPersisted": "Not yet persisted",
   "action": "Action",

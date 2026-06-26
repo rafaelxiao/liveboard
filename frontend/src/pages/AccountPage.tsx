@@ -131,6 +131,7 @@ export default function AccountPage() {
       case "allocate": if (!canAllocate) return "Insufficient free cash"; break;
       case "free": if (!formFrom) return "Select source strategy"; if (!canFree) return "Insufficient strategy capital"; break;
       case "transfer": if (!formFrom || !formTo) return "Select both strategies"; if (formFrom === formTo) return "Same strategy"; if (!canTransfer) return "Insufficient source capital"; break;
+      case "create_strategy": if (!formTo) return "Enter strategy name"; break;
     }
     return null;
   };
@@ -148,6 +149,7 @@ export default function AccountPage() {
       case "allocate": fromB = "FREE_CASH"; toB = "STRATEGY"; toS = formTo; label = `${t("allocate")} ${fmtAbs(formAmount)} → ${formTo}`; break;
       case "free": fromB = "STRATEGY"; toB = "FREE_CASH"; fromS = formFrom; label = `${t("free")} ${fmtAbs(formAmount)} ← ${formFrom}`; break;
       case "transfer": fromB = "STRATEGY"; toB = "STRATEGY"; fromS = formFrom; toS = formTo; label = `${t("transfer")} ${fmtAbs(formAmount)} ${formFrom} → ${formTo}`; break;
+      case "create_strategy": fromB = "FREE_CASH"; toB = "STRATEGY"; toS = formTo; label = `${t("createStrategy")}: ${formTo}`; break;
     }
     setStaged((prev) => [...prev, { id: nextId, fromBucket: fromB, toBucket: toB, fromStrat: fromS, toStrat: toS, amount: amt, label }]);
     setNextId((n) => n + 1);
@@ -247,7 +249,15 @@ export default function AccountPage() {
   if (loading) return <div className="p-8 text-secondary">Loading...</div>;
   if (!capital) return <div className="p-8 text-secondary">No data</div>;
 
-  const stratNames = capital.strategies.map((s) => s.name_key);
+  // Include both committed and staged strategy names in dropdowns
+  const stratNames = useMemo(() => {
+    const names = new Set(capital.strategies.map((s) => s.name_key));
+    for (const s of staged) {
+      if (s.fromStrat) names.add(s.fromStrat);
+      if (s.toStrat) names.add(s.toStrat);
+    }
+    return Array.from(names).sort();
+  }, [capital, staged]);
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
@@ -343,6 +353,7 @@ export default function AccountPage() {
             <option value="allocate">{t("allocate")}</option>
             <option value="free">{t("free")}</option>
             <option value="transfer">{t("transfer")}</option>
+            <option value="create_strategy">{t("createStrategy")}</option>
           </Select>
 
           {(formType === "free" || formType === "transfer") && (
@@ -357,7 +368,7 @@ export default function AccountPage() {
             </Select>
           )}
 
-          {(formType === "allocate" || formType === "transfer") && (
+          {(formType === "allocate" || formType === "transfer" || formType === "create_strategy") && (
             <label className="text-xs text-secondary">
               {t("to")}
               <input

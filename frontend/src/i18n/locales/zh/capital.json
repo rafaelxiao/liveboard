@@ -23,6 +23,7 @@
   "allocate": "分配 → 策略",
   "free": "释放 ← 策略",
   "transfer": "策略 → 策略",
+  "createStrategy": "创建策略",
   "stagedChanges": "待提交",
   "notYetPersisted": "尚未保存",
   "action": "操作",
