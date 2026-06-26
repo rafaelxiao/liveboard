@@ -39,5 +39,7 @@
   "confirmDeleteStrategy": "Delete strategy",
   "createdStrategy": "Created strategy",
   "deletedStrategy": "Deleted strategy",
-  "newStrategy": "new"
+  "newStrategy": "new",
+  "cantDeleteHasCapital": "Cannot delete — strategy has capital",
+  "freeFirst": "Free it first"
 }

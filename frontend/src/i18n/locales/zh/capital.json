@@ -39,5 +39,7 @@
   "confirmDeleteStrategy": "确定要删除策略",
   "createdStrategy": "创建策略",
   "deletedStrategy": "删除策略",
-  "newStrategy": "新"
+  "newStrategy": "新",
+  "cantDeleteHasCapital": "无法删除 — 策略仍有资金",
+  "freeFirst": "请先释放"
 }
