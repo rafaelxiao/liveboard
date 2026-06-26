@@ -36,7 +36,7 @@ export default function AccountPage() {
 
   const [capital, setCapital] = useState<SeriesCapital | null>(null);
   const [committed, setCommitted] = useState<FundMovement[]>([]);
-  const [lifecycleEvents, setLifecycleEvents] = useState<{ ts: string; label: string }[]>([]);
+  const [lifecycleEvents, setLifecycleEvents] = useState<{ ts: string; label: string; type: "created" | "deleted" }[]>([]);
   const [staged, setStaged] = useState<StagedMove[]>([]);
   const [loading, setLoading] = useState(true);
   const [nextId, setNextId] = useState(1);
@@ -59,7 +59,24 @@ export default function AccountPage() {
       apiFetch<SeriesCapital>(`/series/${seriesId}/capital`),
       apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=100`),
     ])
-      .then(([cap, mov]) => { setCapital(cap); setCommitted(mov); })
+      .then(([cap, mov]) => {
+        setCapital(cap);
+        setCommitted(mov);
+        // Infer strategy creation events from first allocation
+        const stratFirstAlloc = new Map<string, string>();
+        for (const m of mov) {
+          if (m.to_bucket === "STRATEGY" && m.to_strategy) {
+            if (!stratFirstAlloc.has(m.to_strategy) || m.ts < stratFirstAlloc.get(m.to_strategy)!) {
+              stratFirstAlloc.set(m.to_strategy, m.ts);
+            }
+          }
+        }
+        const events: { ts: string; label: string; type: "created" }[] = [];
+        for (const [name, ts] of stratFirstAlloc) {
+          events.push({ ts, label: `${t("createdStrategy")}: ${name}`, type: "created" });
+        }
+        setLifecycleEvents(events);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [seriesId]);
@@ -176,6 +193,20 @@ export default function AccountPage() {
       }
       setCapital(cap);
       setCommitted(mov);
+      // Refresh lifecycle events from allocations
+      const stratAlloc = new Map<string, string>();
+      for (const m of mov) {
+        if (m.to_bucket === "STRATEGY" && m.to_strategy) {
+          if (!stratAlloc.has(m.to_strategy) || m.ts < stratAlloc.get(m.to_strategy)!) {
+            stratAlloc.set(m.to_strategy, m.ts);
+          }
+        }
+      }
+      setLifecycleEvents((prev) => {
+        const del = prev.filter((e) => e.type === "deleted");
+        const created: { ts: string; label: string; type: "created" }[] = Array.from(stratAlloc.entries()).map(([name, ts]) => ({ ts, label: `${t("createdStrategy")}: ${name}`, type: "created" }));
+        return [...created, ...del];
+      });
     } catch (e: unknown) {
       setFormError(e instanceof Error ? e.message : "Commit failed");
     } finally {
@@ -187,7 +218,7 @@ export default function AccountPage() {
     if (!confirm(`${t("confirmDeleteStrategy")} '${nameKey}'?`)) return;
     try {
       await apiFetch(`/series/${seriesId}/strategies/${nameKey}`, { method: "DELETE" });
-      setLifecycleEvents((prev) => [...prev, { ts: new Date().toISOString(), label: `${t("deletedStrategy")}: ${nameKey}` }]);
+      setLifecycleEvents((prev) => [...prev, { ts: new Date().toISOString(), label: `${t("deletedStrategy")}: ${nameKey}`, type: "deleted" }]);
       const [cap, mov] = await Promise.all([
         apiFetch<SeriesCapital>(`/series/${seriesId}/capital`),
         apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=100`),
