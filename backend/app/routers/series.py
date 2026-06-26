@@ -217,49 +217,19 @@ def close_series(
     db: Session = Depends(get_db),
     user: User = Depends(get_user),
 ) -> SeriesCloseOut:
-    """Close/decommission a series. Only allowed if all strategies have zero net value."""
+    """Close/decommission a series. Voids series and associated share links."""
     from sqlalchemy import select
-    from app.models.strategy import Strategy
-    from app.models.fill import Fill
-    from app.services.capital import free_cash, strategy_base
-    from app.services.pairing import pair_fills
-    from app.models.instrument import Instrument
+    from app.models.share_link import ShareLink
 
     series = db.get(Series, series_id)
     if series is None or (series.user_id != user.id and user.role != "admin"):
         raise HTTPException(status_code=404, detail="series not found")
 
-    # Check all strategies have been freed (zero capital) or deleted
-    strategies = db.execute(select(Strategy).where(Strategy.series_id == series_id)).scalars().all()
-    instruments = {i.symbol: i for i in db.execute(select(Instrument).where(Instrument.series_id == series_id)).scalars()}
-    
-    for st in strategies:
-        cap = strategy_base(db, series_id, st.id, None)
-        if cap > 0:
-            raise HTTPException(status_code=400, detail=f"Strategy '{st.name_key}' has {cap.quantize(Decimal('0.01'))} capital. Free it first (释放 ← 策略).")
-        # Check for open positions
-        fills = db.execute(select(Fill).where(
-            Fill.series_id == series_id, Fill.strategy_id == st.id, Fill.voided_at.is_(None)
-        ).order_by(Fill.ts)).scalars().all()
-        if fills:
-            rts = pair_fills(fills, instruments)
-            # Check for unpaired buys (open positions)
-            bQueue: list[Fill] = []
-            for f in fills:
-                if f.side == "buy": bQueue.append(f)
-                elif bQueue: bQueue.pop()
-            if bQueue:
-                raise HTTPException(status_code=400, detail=f"Strategy '{st.name_key}' has {len(bQueue)} open buy positions. Close them first.")
-
-    # All clear — void the series
     series.voided_at = datetime.now(timezone.utc)
-    
-    # Also void all share links
-    from app.models.share_link import ShareLink
-    db.execute(select(ShareLink).where(ShareLink.series_id == series_id, ShareLink.voided_at.is_(None))).scalars()
+
     for sl in db.scalars(select(ShareLink).where(ShareLink.series_id == series_id, ShareLink.voided_at.is_(None))).all():
         sl.voided_at = datetime.now(timezone.utc)
-    
+
     db.commit()
     return SeriesCloseOut(closed=True, message=f"Series '{series.name}' closed")
 
