@@ -246,18 +246,18 @@ export default function AccountPage() {
     }
   };
 
-  if (loading) return <div className="p-8 text-secondary">Loading...</div>;
-  if (!capital) return <div className="p-8 text-secondary">No data</div>;
-
   // Include both committed and staged strategy names in dropdowns
   const stratNames = useMemo(() => {
-    const names = new Set(capital.strategies.map((s) => s.name_key));
+    const names = new Set((capital?.strategies || []).map((s) => s.name_key));
     for (const s of staged) {
       if (s.fromStrat) names.add(s.fromStrat);
       if (s.toStrat) names.add(s.toStrat);
     }
     return Array.from(names).sort();
   }, [capital, staged]);
+
+  if (loading) return <div className="p-8 text-secondary">Loading...</div>;
+  if (!capital) return <div className="p-8 text-secondary">No data</div>;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
