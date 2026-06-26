@@ -35,5 +35,7 @@
   "closeHint": "请先释放所有策略资金并平仓。分享链接将被吊销。",
   "confirmClose": "确定要永久注销此账户？此操作不可撤销。",
   "deleteStrategy": "删除策略",
-  "confirmDeleteStrategy": "确定要删除策略"
+  "confirmDeleteStrategy": "确定要删除策略",
+  "createdStrategy": "创建策略",
+  "deletedStrategy": "删除策略"
 }

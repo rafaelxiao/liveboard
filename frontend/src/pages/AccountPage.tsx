@@ -36,6 +36,7 @@ export default function AccountPage() {
 
   const [capital, setCapital] = useState<SeriesCapital | null>(null);
   const [committed, setCommitted] = useState<FundMovement[]>([]);
+  const [lifecycleEvents, setLifecycleEvents] = useState<{ ts: string; label: string }[]>([]);
   const [staged, setStaged] = useState<StagedMove[]>([]);
   const [loading, setLoading] = useState(true);
   const [nextId, setNextId] = useState(1);
@@ -159,12 +160,20 @@ export default function AccountPage() {
         })),
       });
       setCommitOk("Committed");
+      // Detect new strategies created by allocation
+      const prevStrats = new Set(capital?.strategies.map((s) => s.name_key) ?? []);
       setStaged([]);
-      // Refresh
       const [cap, mov] = await Promise.all([
         apiFetch<SeriesCapital>(`/series/${seriesId}/capital`),
         apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=100`),
       ]);
+      const newStrats = cap.strategies.filter((s) => !prevStrats.has(s.name_key));
+      if (newStrats.length > 0) {
+        setLifecycleEvents((prev) => [...prev, ...newStrats.map((s) => ({
+          ts: new Date().toISOString(),
+          label: `${t("createdStrategy")}: ${s.name_key}`,
+        }))]);
+      }
       setCapital(cap);
       setCommitted(mov);
     } catch (e: unknown) {
@@ -178,6 +187,7 @@ export default function AccountPage() {
     if (!confirm(`${t("confirmDeleteStrategy")} '${nameKey}'?`)) return;
     try {
       await apiFetch(`/series/${seriesId}/strategies/${nameKey}`, { method: "DELETE" });
+      setLifecycleEvents((prev) => [...prev, { ts: new Date().toISOString(), label: `${t("deletedStrategy")}: ${nameKey}` }]);
       const [cap, mov] = await Promise.all([
         apiFetch<SeriesCapital>(`/series/${seriesId}/capital`),
         apiFetch<FundMovement[]>(`/series/${seriesId}/fund-movements?limit=100`),
@@ -316,15 +326,19 @@ export default function AccountPage() {
           )}
 
           {(formType === "allocate" || formType === "transfer") && (
-            <Select
-              label={t("to")}
-              value={formTo}
-              onChange={(e) => { setFormTo(e.target.value); setFormError(""); }}
-              className="w-36"
-            >
-              <option value="">—</option>
-              {stratNames.map((n) => <option key={n} value={n}>{n}</option>)}
-            </Select>
+            <label className="text-xs text-secondary">
+              {t("to")}
+              <input
+                list="strategy-list"
+                value={formTo}
+                onChange={(e) => { setFormTo(e.target.value); setFormError(""); }}
+                placeholder="type or select"
+                className="mt-1 block h-8 rounded border border-border-default bg-surface px-2 text-xs text-primary w-36"
+              />
+              <datalist id="strategy-list">
+                {stratNames.map((n) => <option key={n} value={n} />)}
+              </datalist>
+            </label>
           )}
 
           <label className="text-xs text-secondary">
@@ -419,14 +433,30 @@ export default function AccountPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {committed.slice(0, 40).map((m, i) => (
-                <tr key={i} className="hover:bg-surface-2/50">
-                  <td className="py-1.5 px-3 text-secondary whitespace-nowrap">{m.ts.slice(0, 19).replace("T", " ")}</td>
-                  <td className="py-1.5 px-3 text-secondary">{m.from_bucket}{m.from_strategy ? ` — ${m.from_strategy}` : ""}</td>
-                  <td className="py-1.5 px-3 text-secondary">{m.to_bucket}{m.to_strategy ? ` — ${m.to_strategy}` : ""}</td>
-                  <td className="py-1.5 px-3 text-right font-mono text-primary">{fmtAbs(m.amount)}</td>
-                </tr>
-              ))}
+              {[...committed.slice(0, 40).map((m) => ({ type: "movement" as const, ts: m.ts, data: m })),
+                ...lifecycleEvents.slice(0, 20).map((e) => ({ type: "lifecycle" as const, ts: e.ts, data: e }))]
+                .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+                .slice(0, 40)
+                .map((entry, i) => {
+                  if (entry.type === "lifecycle") {
+                    return (
+                      <tr key={`lc-${i}`} className="hover:bg-surface-2/50 bg-accent/5">
+                        <td className="py-1.5 px-3 text-secondary whitespace-nowrap">{entry.ts.slice(0, 19).replace("T", " ")}</td>
+                        <td className="py-1.5 px-3 text-accent" colSpan={2}>{entry.data.label}</td>
+                        <td className="py-1.5 px-3 text-right font-mono text-muted">—</td>
+                      </tr>
+                    );
+                  }
+                  const m = entry.data;
+                  return (
+                    <tr key={`m-${i}`} className="hover:bg-surface-2/50">
+                      <td className="py-1.5 px-3 text-secondary whitespace-nowrap">{m.ts.slice(0, 19).replace("T", " ")}</td>
+                      <td className="py-1.5 px-3 text-secondary">{m.from_bucket}{m.from_strategy ? ` — ${m.from_strategy}` : ""}</td>
+                      <td className="py-1.5 px-3 text-secondary">{m.to_bucket}{m.to_strategy ? ` — ${m.to_strategy}` : ""}</td>
+                      <td className="py-1.5 px-3 text-right font-mono text-primary">{fmtAbs(m.amount)}</td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>

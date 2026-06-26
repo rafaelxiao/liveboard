@@ -35,5 +35,7 @@
   "closeHint": "Free all strategy capital and close positions first. Share links will be revoked.",
   "confirmClose": "Permanently close this account? This cannot be undone.",
   "deleteStrategy": "Delete strategy",
-  "confirmDeleteStrategy": "Delete strategy"
+  "confirmDeleteStrategy": "Delete strategy",
+  "createdStrategy": "Created strategy",
+  "deletedStrategy": "Deleted strategy"
 }
