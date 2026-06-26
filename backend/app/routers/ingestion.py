@@ -164,7 +164,7 @@ def fund_movements(
     series_id: int,
     body: list[FundMovementIn],
     db: Session = Depends(get_db),
-    user: User = Depends(get_api_user),
+    user: User = Depends(get_user),
 ) -> FundIngestOut:
     series = _owned_series(series_id, db, user)
     try:
