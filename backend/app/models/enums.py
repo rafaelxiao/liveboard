@@ -28,7 +28,3 @@ class PositionEffect(StrEnum):
 
 class IngestionKind(StrEnum):
     FILLS = "fills"
-    FUND_MOVEMENTS = "fund_movements"
-    INSTRUMENTS = "instruments"
-    FX_RATES = "fx_rates"
-    BENCHMARK = "benchmark"

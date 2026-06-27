@@ -41,6 +41,12 @@ from app.services.capital import account_base
 # ---------------------------------------------------------------------------
 
 
+def _load_instruments(session: Session, series_id: int) -> dict[str, "Instrument"]:
+    """Load all instruments for a series into a symbol→Instrument map."""
+    from app.models.instrument import Instrument
+    return {i.symbol: i for i in session.scalars(select(Instrument).where(Instrument.series_id == series_id)).all()}
+
+
 def _load_owned_series(session: Session, user_id: int, series_ids: list[int]) -> list[Series]:
     rows = (
         session.execute(select(Series).where(Series.user_id == user_id, Series.id.in_(series_ids)))
@@ -545,8 +551,8 @@ def _pnl_breakdown_aggregated(
     f1_fills = load_fills(first_s)
     f2_fills = load_fills(second_s)
 
-    inst_f1 = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == first_s.id).all()}
-    inst_f2 = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == second_s.id).all()}
+    inst_f1 = _load_instruments(session, first_s.id)
+    inst_f2 = _load_instruments(session, second_s.id)
 
     f1_days = {f.ts.date() for f in f1_fills}
     f2_days = {f.ts.date() for f in f2_fills}
@@ -654,8 +660,8 @@ def _pnl_breakdown(
         # Pair and get daily PnL
         from app.models.instrument import Instrument
 
-        inst_f1 = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == first_s.id).all()}
-        inst_f2 = {i.symbol: i for i in session.query(Instrument).filter(Instrument.series_id == second_s.id).all()}
+        inst_f1 = _load_instruments(session, first_s.id)
+        inst_f2 = _load_instruments(session, second_s.id)
 
         pnl_f1 = defaultdict(Decimal)
         pnl_f2 = defaultdict(Decimal)
@@ -735,10 +741,7 @@ def _execution_comparison(
     # Load instruments for each series
     instruments_by_series: dict[int, dict[str, Instrument]] = {}
     for s in cohort:
-        instruments_by_series[s.id] = {
-            i.symbol: i
-            for i in session.scalars(select(Instrument).where(Instrument.series_id == s.id)).all()
-        }
+        instruments_by_series[s.id] = _load_instruments(session, s.id)
 
     groups_out: list[ExecutionDeltaGroup] = []
 
@@ -813,7 +816,7 @@ def _execution_comparison(
                 daily_groups=len(spreads[baseline.id]),
                 weighted_avg_bps=str(diff_bps.quantize(Decimal("0.1"))),
                 estimated_pnl_impact=str(impact.quantize(Decimal("0.01"))),
-                total_notional=str(notional_by_series[baseline.id].quantize(Decimal("0"))),
+                total_notional=str(min_total_notional.quantize(Decimal("0"))),
             ))
         else:
             # Per-symbol rows
