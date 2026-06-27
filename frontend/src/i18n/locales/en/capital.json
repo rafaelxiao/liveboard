@@ -41,5 +41,6 @@
   "deletedStrategy": "Deleted strategy",
   "newStrategy": "new",
   "cantDeleteHasCapital": "Cannot delete — strategy has capital",
-  "freeFirst": "Free it first"
+  "freeFirst": "Free it first",
+  "deleteFailed": "Failed to delete strategy"
 }

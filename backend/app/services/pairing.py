@@ -137,8 +137,3 @@ def pair_fills(fills, instruments):
 def fees_on_open_positions(fills, instruments):
     _, fee = _batch(fills, instruments)
     return fee
-
-
-def to_positions(round_trips):
-    # group flat-to-flat lots into per-position trades (Task 9)
-    return round_trips

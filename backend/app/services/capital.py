@@ -106,10 +106,22 @@ def base_series(
     days_sorted = sorted(days)
 
     if level == "free_cash":
-        # free_cash still uses the per-day approach for simplicity
+        # Single-pass for free_cash (was O(n²), now O(n))
+        cum = Decimal("0")
+        row_idx = 0
+        rows_by_ts = sorted(rows, key=lambda r: r.ts)
         for day in days_sorted:
-            at = dt.datetime.combine(day, dt.time(23, 59, 59), tzinfo=dt.timezone.utc)
-            result[day] = free_cash(session, series_id, at)
+            day_end = dt.datetime.combine(day, dt.time(23, 59, 59), tzinfo=dt.timezone.utc)
+            while row_idx < len(rows_by_ts) and rows_by_ts[row_idx].ts <= day_end:
+                m = rows_by_ts[row_idx]
+                if m.to_bucket == Bucket.FREE_CASH and m.from_bucket != Bucket.STRATEGY:
+                    cum += m.amount
+                if m.from_bucket == Bucket.FREE_CASH and m.to_bucket != Bucket.STRATEGY:
+                    cum -= m.amount
+                # Internal STRATEGY↔FREE_CASH transfers cancel out (double-entry at account level)
+                # Only EXTERNAL⇔FREE_CASH changes free_cash
+                row_idx += 1
+            result[day] = cum
         return result
 
     # Load all movements once

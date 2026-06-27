@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from decimal import Decimal
+import uuid
 
 import pytest
 from app.models.fill import Fill
@@ -134,6 +135,10 @@ def make_fx(db_session, series, *, ccy_from, ccy_to, at, rate):
     return r
 
 
+import uuid
+
+_mfund_counter = 0  # pragma: no cover — test helper
+
 def make_fund(
     db_session,
     series,
@@ -147,6 +152,8 @@ def make_fund(
     to_strategy_id=None,
     voided=False,
 ):
+    global _mfund_counter
+    _mfund_counter += 1
     m = FundMovement(
         series_id=series.id,
         ts=at,
@@ -156,6 +163,7 @@ def make_fund(
         to_bucket=to_bucket,
         from_strategy_id=from_strategy_id,
         to_strategy_id=to_strategy_id,
+        client_movement_id=f"test-{uuid.uuid4().hex[:8]}-{_mfund_counter}",
         voided_at=utc(2026, 6, 19) if voided else None,
         created_at=utc(2026, 6, 19),
         updated_at=utc(2026, 6, 19),

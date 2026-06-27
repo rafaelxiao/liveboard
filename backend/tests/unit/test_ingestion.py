@@ -80,6 +80,7 @@ def test_fund_movement_external_to_free_cash(db_session, user):
         series_id=sid,
         movements=[
             FundMovementIn(
+                client_movement_id="test-1",
                 ts="2026-06-19T00:00:00Z",
                 currency="USD",
                 from_bucket="EXTERNAL",
@@ -102,6 +103,7 @@ def test_fund_movement_strategy_requires_strategy_name(db_session, user):
             series_id=sid,
             movements=[
                 FundMovementIn(
+                    client_movement_id="test-2",
                     ts="2026-06-19T00:00:00Z",
                     currency="USD",
                     from_bucket="FREE_CASH",
@@ -120,6 +122,7 @@ def test_fund_movement_same_bucket_rejected(db_session, user):
             series_id=sid,
             movements=[
                 FundMovementIn(
+                    client_movement_id="test-3",
                     ts="2026-06-19T00:00:00Z",
                     currency="USD",
                     from_bucket="FREE_CASH",
@@ -138,6 +141,7 @@ def test_fund_movement_nonpositive_amount_rejected(db_session, user):
             series_id=sid,
             movements=[
                 FundMovementIn(
+                    client_movement_id="test-4",
                     ts="2026-06-19T00:00:00Z",
                     currency="USD",
                     from_bucket="EXTERNAL",
@@ -155,6 +159,7 @@ def test_fund_movement_strategy_transfer_auto_creates(db_session, user):
         series_id=sid,
         movements=[
             FundMovementIn(
+                client_movement_id="test-5",
                 ts="2026-06-19T00:00:00Z",
                 currency="USD",
                 from_bucket="STRATEGY",
@@ -169,3 +174,32 @@ def test_fund_movement_strategy_transfer_auto_creates(db_session, user):
     from app.models.strategy import Strategy
 
     assert db_session.query(Strategy).filter_by(series_id=sid).count() == 2
+
+
+def test_fund_movement_strategy_name_persisted(db, series, strategy):
+    """FundMovement stores strategy name directly so history survives deletion."""
+    from app.schemas.ingestion import FundMovementIn
+
+    moves = [
+        FundMovementIn(
+            client_movement_id="persist-test",
+            ts="2026-06-19T00:00:00Z",
+            currency="USD",
+            from_bucket="FREE_CASH",
+            to_bucket="STRATEGY",
+            to_strategy="alpha",
+            amount="5000",
+        )
+    ]
+    ingest_fund_movements(db, series_id=series.id, movements=moves)
+    fm = db.query(FundMovement).filter_by(series_id=series.id).first()
+    assert fm.to_strategy_name == "alpha"  # name persisted
+    assert fm.to_strategy_id == strategy.id  # FK still works
+
+    # Delete the strategy — name should still be in movement
+    db.delete(strategy)
+    db.flush()
+    db.expire_all()
+    fm2 = db.query(FundMovement).filter_by(series_id=series.id).first()
+    assert fm2.to_strategy_name == "alpha"  # survives deletion
+    assert fm2.to_strategy_id is None  # FK nulled

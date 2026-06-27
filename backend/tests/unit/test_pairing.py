@@ -470,3 +470,25 @@ def test_fees_on_open_correct_after_partial_close(db, series, strategy):
     assert rts[0].entry_fees == Decimal("6.0")  # 20 * 30/100
     # remaining 70 lots still open → 20 * 70/100 = 14
     assert pairing.fees_on_open_positions(fills, instruments) == Decimal("14.0")
+
+
+def test_fee_pro_rata_two_partial_closes_no_drift(db, series, strategy):
+    """Bug 1b: two partial closes of one open lot — each should get pro-rata fee of the ORIGINAL qty."""
+    ins = make_instrument(db, series, symbol="AAPL", multiplier="1")
+    instruments = {"AAPL": ins}
+    fills = [
+        make_fill(db, series, strategy, client_fill_id="o1", side="buy", qty="100", price="10",
+                  at=utc(2026, 6, 19, 14, 0), commission="50"),
+        make_fill(db, series, strategy, client_fill_id="c1", side="sell", qty="30", price="12",
+                  at=utc(2026, 6, 19, 15, 0)),
+        make_fill(db, series, strategy, client_fill_id="c2", side="sell", qty="20", price="13",
+                  at=utc(2026, 6, 19, 16, 0)),
+    ]
+    rts = pairing.pair_fills(fills, instruments)
+    assert len(rts) == 2
+    # First close: 30/100 of the 50 entry fee = 15
+    assert rts[0].entry_fees == Decimal("15.0")
+    # Second close: 20/100 of the 50 entry fee = 10  (NOT 20/70 of the remaining fee!)
+    assert rts[1].entry_fees == Decimal("10.0")
+    # Remaining 50 open: 50 * 50/100 = 25
+    assert pairing.fees_on_open_positions(fills, instruments) == Decimal("25.0")

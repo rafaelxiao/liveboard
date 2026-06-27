@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Select from "../components/Select";
 import { apiFetch } from "../api/client";
@@ -30,6 +30,7 @@ interface StagedMove {
 
 export default function AccountPage() {
   const { t } = useTranslation("capital");
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const seriesId = Number(id);
   const { data: seriesList } = useSeriesList();
@@ -102,7 +103,7 @@ export default function AccountPage() {
       }
     }
     return { curFree: Math.round(curFree * 100) / 100, curStrats, projFree: Math.round(pFree * 100) / 100, projStrats: pStrats as Record<string, number> };
-  }, [capital, committed, staged]);
+  }, [capital, staged]);
 
   function applyMove(
     free: number, strats: Record<string, number>,
@@ -188,11 +189,15 @@ export default function AccountPage() {
           })),
         });
       }
-      // Commit strategy deletions
+      // Commit strategy deletions (best-effort; partial failure doesn't undo movements)
       const dels = staged.filter((s) => s.type === "delete_strategy");
       for (const d of dels) {
-        if (d.fromStrat) {
-          await apiFetch(`/series/${seriesId}/strategies/${d.fromStrat}`, { method: "DELETE" });
+        try {
+          if (d.fromStrat) {
+            await apiFetch(`/series/${seriesId}/strategies/${d.fromStrat}`, { method: "DELETE" });
+          }
+        } catch (e: unknown) {
+          setFormError(`${t("deleteFailed")}: ${d.fromStrat} — ${e instanceof Error ? e.message : "unknown"}`);
         }
       }
       setCommitOk(t("committed"));
@@ -238,7 +243,7 @@ export default function AccountPage() {
     setCloseError("");
     try {
       await apiFetch(`/series/${seriesId}`, { method: "DELETE" });
-      window.location.href = `${import.meta.env.BASE_URL}dashboard`;
+      navigate(`${import.meta.env.BASE_URL}dashboard`);
     } catch (e: unknown) {
       setCloseError(e instanceof Error ? e.message : "Failed to close");
       setClosing(false);

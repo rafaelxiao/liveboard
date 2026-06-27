@@ -167,7 +167,7 @@ function ShareLinksSection() {
   });
 
   const shareUrl = (data: { token: string; slug?: string }) =>
-    `${window.location.origin}/liveboard/share/${data.slug || data.token}`;
+    `${window.location.origin}${import.meta.env.BASE_URL}share/${data.slug || data.token}`;
 
   return (
     <section className="rounded-lg border border-border-default bg-surface p-5 mb-6">
