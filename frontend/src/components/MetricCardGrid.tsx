@@ -57,9 +57,10 @@ export default function MetricCardGrid({ envelope }: MetricCardGridProps) {
 }
 
 function getPerformanceCards(m: MetricsEnvelope["metrics"], ccy: string, meta: MetricsEnvelope["meta"], t: TFn) {
+  const endValue = String((parseFloat(meta.capital_base || "0") + parseFloat(m.net_pnl || "0")).toFixed(2));
   return [
     { label: t("Net PnL"), value: m.net_pnl, unit: "USD", baseCurrency: ccy, isPnl: true, badge: <RealizedBadge variant="header" /> },
-    { label: t("Gross PnL"), value: m.gross_pnl, unit: "USD", baseCurrency: ccy, isPnl: true },
+    { label: t("End Value"), value: endValue, unit: "USD", baseCurrency: ccy },
     { label: t("Total Fees"), value: m.total_fees, unit: "USD", baseCurrency: ccy },
     { label: t("Max Drawdown"), value: m.max_drawdown, unit: "USD", baseCurrency: ccy, isPnl: true, badge: meta.flags.open_positions_exist ? <RealizedBadge variant="caveat" /> : undefined },
     { label: t("TWR"), value: m.twr, unit: "ratio", baseCurrency: ccy, display: "percent" as const },
@@ -89,7 +90,6 @@ function getTradeBehaviorCards(m: MetricsEnvelope["metrics"], ccy: string, t: TF
 function getSymbolCards(m: MetricsEnvelope["metrics"], ccy: string, t: TFn) {
   return [
     { label: t("Net PnL"), value: m.net_pnl, unit: "USD", baseCurrency: ccy, isPnl: true, badge: <RealizedBadge variant="header" /> },
-    { label: t("Gross PnL"), value: m.gross_pnl, unit: "USD", baseCurrency: ccy, isPnl: true },
     { label: t("Total Fees"), value: m.total_fees, unit: "USD", baseCurrency: ccy },
     { label: t("Win Rate"), value: m.win_rate, unit: "ratio", baseCurrency: ccy, display: "percent" as const },
     { label: t("Profit Factor"), value: m.profit_factor, unit: "ratio", baseCurrency: ccy },
