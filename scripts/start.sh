@@ -46,7 +46,7 @@ esac
 
 stop_all
 ensure_pg
-BACKEND_PID=$(start_backend "$BACKEND_PORT" "backend")
+BACKEND_PID=$(start_backend "$BACKEND_PORT" "backend" "systemd")
 wait_for_backend "$BACKEND_PORT"
 
 # Production: build static files for nginx

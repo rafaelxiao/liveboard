@@ -35,6 +35,11 @@ kill_port() {
 
 stop_all() {
     log_info "Stopping old LiveBoard processes ..."
+    # Try systemd first
+    if systemctl is-active --quiet liveboard-backend 2>/dev/null; then
+        sudo systemctl stop liveboard-backend
+        log_ok "Stopped via systemd"
+    fi
     pkill -f "uvicorn app.main:app" 2>/dev/null || true
     pkill -f "vite" 2>/dev/null || true
     kill_port "$BACKEND_PORT"
@@ -95,7 +100,8 @@ ensure_pg() {
 start_backend() {
     local port="${1:-$BACKEND_PORT}"
     local label="${2:-backend}"
-    log_info "Starting $label on port $port ..."
+    local mode="${3:-fg}"
+    log_info "Starting $label on port $port (mode=$mode) ..."
     cd "$PROJECT_ROOT/backend"
 
     if [ ! -f .env ]; then
@@ -107,16 +113,22 @@ start_backend() {
     uv run alembic upgrade head
     log_ok "Migrations complete"
 
-    uv run uvicorn app.main:app \
-        --host 0.0.0.0 \
-        --port "$port" \
-        --reload \
-        --proxy-headers \
-        --forwarded-allow-ips='*' \
-        --log-level info \
-        &
-    echo "$!"  # return PID via stdout
-    log_ok "$label started (port $port)"
+    if [ "$mode" = "systemd" ] && command -v systemctl &>/dev/null; then
+        sudo systemctl restart liveboard-backend
+        log_ok "$label started via systemd"
+        echo "0"
+    else
+        uv run uvicorn app.main:app \
+            --host 0.0.0.0 \
+            --port "$port" \
+            --reload \
+            --proxy-headers \
+            --forwarded-allow-ips='*' \
+            --log-level info \
+            &
+        echo "$!"
+        log_ok "$label started (port $port)"
+    fi
 }
 
 wait_for_backend() {
